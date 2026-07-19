@@ -1,0 +1,1948 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Banzuke — Sumo Ranking Sim</title>
+<style>
+  :root{
+    --paper: #e9e1c9; --paper-dark: #ddd2ad; --ink: #241d15; --sumi: #2b241a;
+    --vermillion: #a13a2b; --vermillion-deep: #7f2c20; --straw: #c39a4d;
+    --straw-light: #e3c583; --gold: #b68a3a; --line: rgba(36,29,21,0.25); --green: #3d6b3f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background: radial-gradient(ellipse at top, #3a2f22 0%, #1c1712 55%, #120e0b 100%);
+    color:var(--ink); font-family: "Iowan Old Style","Palatino Linotype", Georgia, "Noto Serif", serif;
+    min-height:100vh; padding:28px 14px 60px;
+  }
+  .wrap{max-width:960px;margin:0 auto;}
+  .masthead{ text-align:center; margin-bottom:8px; }
+  .masthead .eyebrow{ letter-spacing:0.35em; font-size:11px; color:var(--straw-light); text-transform:uppercase; font-family:"Courier New", monospace; }
+  .masthead h1{ font-size:clamp(34px,6vw,54px); margin:6px 0 2px; color:var(--paper); font-weight:700; letter-spacing:0.04em; text-shadow:0 2px 0 rgba(0,0,0,0.4); }
+  .masthead h1 span{ color:var(--vermillion); }
+  .masthead .sub{ color:#b9ac8c; font-size:14px; font-style:italic; }
+  .calendar{ text-align:center; color:var(--straw-light); font-size:13px; letter-spacing:0.15em; text-transform:uppercase; margin:10px 0 22px; font-family:"Courier New",monospace; }
+
+  .panel{
+    background: linear-gradient(180deg, var(--paper) 0%, var(--paper-dark) 100%);
+    border:1px solid var(--line);
+    box-shadow: 0 18px 50px rgba(0,0,0,0.55), inset 0 0 0 6px rgba(178,138,58,0.15);
+    padding:22px 20px 26px; margin-bottom:26px; position:relative;
+  }
+  .panel.sheet::before{ content:""; position:absolute; inset:8px; border:1px solid rgba(161,58,43,0.35); pointer-events:none; }
+  .panel-title{ text-align:center; font-size:13px; letter-spacing:0.28em; text-transform:uppercase; color:var(--vermillion-deep); margin-bottom:14px; font-weight:700; }
+  .panel[hidden]{ display:none; }
+  .panel:not([hidden]){ animation: panelFadeIn 0.35s ease; }
+  @keyframes panelFadeIn{ from{ opacity:0; transform:translateY(6px); } to{ opacity:1; transform:translateY(0); } }
+
+  .col-heads{ display:grid; grid-template-columns: 1fr 120px 1fr; text-align:center; font-size:12px; letter-spacing:0.2em; text-transform:uppercase; color:var(--vermillion-deep); margin-bottom:6px; font-weight:700; }
+  .tier-label{ text-align:center; font-size:11px; letter-spacing:0.3em; text-transform:uppercase; color:#8a6d2f; margin:14px 0 6px; display:flex; align-items:center; gap:10px; }
+  .tier-label::before, .tier-label::after{ content:""; flex:1; height:1px; background:var(--line); }
+  .row{ display:grid; grid-template-columns: 1fr 120px 1fr; align-items:center; padding:5px 0; border-bottom:1px dotted var(--line); font-size:15px; }
+  .row:last-child{border-bottom:none;}
+  .name{ padding:0 10px; display:flex; align-items:center; gap:8px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .name.east{ justify-content:flex-end; text-align:right; flex-direction:row-reverse;}
+  .name.west{ justify-content:flex-start; text-align:left;}
+  .rankcell{ text-align:center; font-weight:700; font-size:11.5px; letter-spacing:0.02em; color:var(--sumi); }
+  .record{ font-family:"Courier New", monospace; font-size:12px; color:var(--vermillion-deep); font-weight:700; min-width:34px; text-align:center; }
+  .yokozuna .name{ font-size:19px; font-weight:700; }
+  .ozeki .name{ font-size:17px; font-weight:700;}
+  .maegashira .name{ font-size:13.5px; }
+  .badge{ font-size:9px; padding:1px 5px; border-radius:2px; color:var(--paper); background:var(--sumi); letter-spacing:0.05em; }
+  .badge.up{ background:var(--green); }
+  .badge.down{ background:var(--vermillion-deep); }
+  .badge.kadoban{ background:var(--straw); color:var(--sumi); }
+  .badge.new{ background:#4c5b7a; }
+  .badge.kyujo{ background:#8a3a5a; }
+
+  .controls{ text-align:center; margin:26px 0 10px; }
+  button.main-btn{
+    background:linear-gradient(180deg, var(--vermillion), var(--vermillion-deep)); color:var(--paper);
+    border:1px solid rgba(0,0,0,0.3); padding:14px 30px; font-size:15px; letter-spacing:0.12em;
+    text-transform:uppercase; font-weight:700; cursor:pointer;
+    box-shadow:0 6px 0 rgba(0,0,0,0.35), 0 10px 20px rgba(0,0,0,0.4); transition:transform 0.08s ease; font-family:inherit;
+    margin:0 6px 10px;
+  }
+  button.main-btn:active{ transform:translateY(4px); box-shadow:0 2px 0 rgba(0,0,0,0.35); }
+  button.main-btn:disabled{ opacity:0.4; cursor:default; }
+  button.ghost-btn{
+    background:transparent; color:var(--straw-light); border:1px solid var(--straw); padding:10px 20px;
+    font-size:13px; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; margin:0 6px 10px; font-family:inherit;
+  }
+  .status{ text-align:center; color:#c9bb96; font-size:13px; min-height:20px; margin-top:6px; letter-spacing:0.05em; }
+  .day-counter{ text-align:center; font-family:"Courier New", monospace; color:var(--straw-light); font-size:13px; letter-spacing:0.2em; margin-top:4px; }
+  .note{ max-width:700px; margin:24px auto 0; text-align:center; font-size:12px; color:#a99a78; line-height:1.6; font-style:italic; }
+
+  .champion-block{ text-align:center; margin-bottom:18px; padding-bottom:16px; border-bottom:1px dashed var(--line); }
+  .champion-block .yusho-label{ font-size:11px; letter-spacing:0.3em; text-transform:uppercase; color:#8a6d2f; }
+  .champion-block .yusho-name{ font-size:26px; font-weight:700; color:var(--sumi); margin:4px 0 2px; }
+  .champion-block .yusho-meta{ font-size:13px; color:var(--vermillion-deep); }
+  .champion-block .playoff-note{ font-size:11.5px; color:#7a6a45; font-style:italic; margin-top:4px; }
+  table.prize-table{ width:100%; border-collapse:collapse; margin-bottom:6px; }
+  table.prize-table th{ font-size:10.5px; letter-spacing:0.15em; text-transform:uppercase; color:#8a6d2f; text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); }
+  table.prize-table td{ font-size:13.5px; padding:6px 6px; border-bottom:1px dotted var(--line); }
+  table.prize-table td.rec{ font-family:"Courier New", monospace; color:var(--vermillion-deep); font-weight:700; white-space:nowrap; }
+  .no-prize{ text-align:center; font-size:12px; color:#8a7a55; font-style:italic; padding:8px; }
+  .news-list{ list-style:none; margin:14px 0 0; padding:0; font-size:13px; line-height:1.9; }
+  .news-list li{ padding-left:18px; position:relative; }
+  .news-list li::before{ content:"⛩"; position:absolute; left:0; color:var(--vermillion-deep); font-size:11px; top:2px; }
+
+  .dossier-select{ display:block; width:100%; margin:0 auto 16px; padding:10px 12px; font-size:14px; font-family:inherit; background:var(--paper); color:var(--ink); border:1px solid var(--straw); cursor:pointer; }
+  .dossier-empty{ text-align:center; font-size:13px; color:#8a7a55; font-style:italic; padding:14px 6px; }
+  .dossier-summary{ text-align:center; margin-bottom:14px; padding-bottom:12px; border-bottom:1px dashed var(--line); }
+  .dossier-name{ font-size:19px; font-weight:700; color:var(--sumi); }
+  .dossier-stats{ font-size:12px; color:var(--vermillion-deep); margin-top:4px; letter-spacing:0.02em; }
+  table.dossier-table{ width:100%; border-collapse:collapse; }
+  table.dossier-table th{ font-size:10.5px; letter-spacing:0.15em; text-transform:uppercase; color:#8a6d2f; text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); }
+  table.dossier-table td{ font-size:13.5px; padding:6px 6px; border-bottom:1px dotted var(--line); }
+  table.dossier-table td.rec{ font-family:"Courier New", monospace; color:var(--vermillion-deep); font-weight:700; white-space:nowrap; }
+  .honor-tag{ font-size:10px; padding:1px 6px; border-radius:2px; background:var(--vermillion-deep); color:var(--paper); letter-spacing:0.03em; }
+
+  /* Today's bouts */
+  .bout-row{ display:grid; grid-template-columns: 1fr 50px 1fr; align-items:center; font-size:13px; padding:5px 4px; border-bottom:1px dotted var(--line); }
+  .bout-row span:first-child{ text-align:right; }
+  .bout-vs{ text-align:center; font-size:10px; letter-spacing:0.1em; color:#8a7a55; text-transform:uppercase; }
+
+  /* Dohyo-iri ceremony */
+  .dohyo-ring{ width:120px; height:120px; margin:0 auto 16px; border-radius:50%; border:4px solid var(--straw); background:radial-gradient(circle, #f2ead2, var(--paper-dark)); box-shadow: inset 0 0 20px rgba(161,58,43,0.25); display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .dohyo-names{ text-align:center; font-size:15px; line-height:2; min-height:70px; }
+  .dohyo-names span{ display:inline-block; margin:0 8px; opacity:0; animation: fadeInName 0.5s ease forwards; }
+  @keyframes fadeInName{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+  .yokozuna-entrance{ text-align:center; }
+  .yokozuna-entrance .yname{ font-size:30px; font-weight:700; color:var(--sumi); animation: shikoPulse 1.4s ease-in-out; }
+  @keyframes shikoPulse{ 0%{transform:scale(0.85); opacity:0;} 30%{transform:scale(1.08); opacity:1;} 60%{transform:scale(0.97);} 100%{transform:scale(1);} }
+  .yokozuna-entrance .yritual{ font-size:12px; font-style:italic; color:#7a6a45; margin-top:6px; }
+  .dohyo-skip{ text-align:center; margin-top:14px; }
+
+  /* Kyokai */
+  table.kyokai-table{ width:100%; border-collapse:collapse; }
+  table.kyokai-table th{ font-size:10.5px; letter-spacing:0.15em; text-transform:uppercase; color:#8a6d2f; text-align:left; padding:4px 6px; border-bottom:1px solid var(--line); }
+  table.kyokai-table td{ font-size:13px; padding:6px 6px; border-bottom:1px dotted var(--line); }
+  .chairman-block{ text-align:center; margin-bottom:14px; padding-bottom:12px; border-bottom:1px dashed var(--line); }
+  .chairman-block .clabel{ font-size:11px; letter-spacing:0.3em; text-transform:uppercase; color:#8a6d2f; }
+  .chairman-block .cname{ font-size:21px; font-weight:700; color:var(--sumi); margin:4px 0 2px; }
+
+  @media (max-width:560px){
+    .panel{ padding:16px 8px 22px; }
+    .col-heads, .row{ grid-template-columns: 1fr 90px 1fr; }
+    .row{font-size:13px;}
+    .yokozuna .name{font-size:16px;}
+    .name{padding:0 4px;}
+    .rankcell{font-size:9.5px;}
+    .champion-block .yusho-name{ font-size:21px; }
+    .bout-row{ font-size:11.5px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="masthead">
+    <div class="eyebrow">Grand Sumo Tournament</div>
+    <h1>BAN<span>ZUKE</span></h1>
+    <div class="sub">the ranking sheet turns on the results of the ring</div>
+  </div>
+  <div class="calendar" id="calendarLabel"></div>
+
+  <div class="controls">
+    <button class="main-btn" id="beginBtn">Begin Basho</button>
+    <button class="main-btn" id="nextDayBtn" hidden>Next Day ▶</button>
+    <button class="ghost-btn" id="skipDayBtn" hidden>Skip to Final Day ▶▶|</button>
+    <button class="ghost-btn" id="resetBtn">Reset Game</button>
+  </div>
+  <div class="day-counter" id="dayCounter"></div>
+  <div class="status" id="statusLine"></div>
+
+  <div class="controls" style="margin-top:0;">
+    <button class="ghost-btn" id="saveBtn">💾 Save Game</button>
+    <button class="ghost-btn" id="loadBtn">📂 Load Game</button>
+    <label style="color:var(--straw-light); font-size:12px; letter-spacing:0.08em; text-transform:uppercase; cursor:pointer; margin-left:8px;">
+      <input type="checkbox" id="soundToggle"> Sound
+    </label>
+  </div>
+
+  <div style="text-align:center; margin:4px 0 22px;">
+    <select id="viewSelect" class="dossier-select" style="max-width:320px; margin:0 auto;">
+      <option value="none">— View a panel —</option>
+      <option value="bouts">Today's Bouts</option>
+      <option value="results">Basho Results</option>
+      <option value="dossier">Rikishi Dossier</option>
+      <option value="kyokai">Sumo Kyōkai Board</option>
+      <option value="editor">Edit Banzuke</option>
+      <option value="archive">Historical Archive</option>
+      <option value="halloffame">Hall of Fame</option>
+    </select>
+  </div>
+
+  <div class="panel" id="dohyoPanel" hidden>
+    <div class="panel-title">Dohyo-iri — Ring-Entering Ceremony</div>
+    <div class="dohyo-ring" id="dohyoRing"></div>
+    <div class="dohyo-names" id="dohyoNames"></div>
+    <div class="yokozuna-entrance" id="yokozunaEntrance"></div>
+    <div class="dohyo-skip"><button class="ghost-btn" id="skipCeremonyBtn">Skip Ceremony</button></div>
+  </div>
+
+  <div class="panel" id="trophyPanel" hidden>
+    <div class="panel-title">Trophy Ceremony</div>
+    <div class="dohyo-names" id="trophyNames" style="font-size:19px; min-height:100px;"></div>
+  </div>
+
+  <div class="panel" id="promotionPanel" hidden>
+    <div class="panel-title">Banzuke Announcement</div>
+    <div id="promotionList" style="font-size:14px; line-height:2.1; text-align:center;"></div>
+  </div>
+
+  <div class="panel" id="boutsPanel" hidden>
+    <div class="panel-title" id="boutsTitle">Today's Bouts</div>
+    <div id="boutsList"></div>
+  </div>
+
+  <div class="panel" id="resultsPanel" hidden>
+    <div class="panel-title" id="resultsBashoLabel">Basho Results</div>
+    <div class="champion-block" id="championBlock"></div>
+    <div class="panel-title" style="margin-bottom:8px;">Special Prizes — Sanshō</div>
+    <table class="prize-table" id="prizeTable"><tbody></tbody></table>
+    <ul class="news-list" id="newsList"></ul>
+  </div>
+
+  <div class="panel" id="dossierPanel" hidden>
+    <div class="panel-title">Rikishi Dossier</div>
+    <select id="dossierSelect" class="dossier-select"></select>
+    <div id="dossierBody"></div>
+  </div>
+
+  <div class="panel" id="kyokaiPanel" hidden>
+    <div class="panel-title">Sumo Kyōkai — Board of the Association</div>
+    <div id="kyokaiBody"></div>
+  </div>
+
+  <div class="panel" id="archivePanel" hidden>
+    <div class="panel-title">Historical Archive</div>
+    <select id="archiveSelect" class="dossier-select"></select>
+    <div id="archiveBody"></div>
+  </div>
+
+  <div class="panel" id="halloffamePanel" hidden>
+    <div class="panel-title">Hall of Fame</div>
+    <div id="halloffameBody"></div>
+  </div>
+
+  <div class="panel" id="editorPanel" hidden>
+    <div class="panel-title">Edit Banzuke — You Are the Kyōkai</div>
+    <div class="dossier-empty" style="margin-bottom:10px;">Reassign any seat below, then confirm. Your banzuke is the one that will be followed next basho.</div>
+    <div id="editorBody"></div>
+    <div style="text-align:center; margin-top:14px;">
+      <button class="main-btn" id="confirmEditorBtn">Confirm Banzuke</button>
+    </div>
+    <div class="status" id="editorStatus"></div>
+  </div>
+
+  <div class="panel sheet">
+    <div style="text-align:center; margin-bottom:14px;"><span class="badge" style="background:var(--vermillion-deep); font-size:12px; padding:5px 14px; letter-spacing:0.2em;" id="bashoLabel">Opening Banzuke</span></div>
+    <div class="col-heads"><div>East</div><div>Rank</div><div>West</div></div>
+    <div id="banzukeBody"></div>
+  </div>
+
+  <div class="note">
+    Six tournaments a year — Hatsu (Jan), Haru (Mar), Natsu (May), Nagoya (Jul), Aki (Sep), Kyūshū (Nov) — each opening with a dohyo-iri ceremony and closing with a Trophy Ceremony before results. Step through each day's bouts (with kimarite, win probability, commentary, and a Day-10+ Yushō Race), or skip to the final day.
+    Every rikishi belongs to a stable (same-stable bouts are avoided), trains between basho across six categories (strength, speed, technique, balance, stamina, mental), and ages — young rikishi improve faster, veterans decline physically but gain experience. Named injuries (severity, recovery time, recurrence, performance impact) can sideline a rikishi on kyūjo for one or more basho; for a Yokozuna, kyūjo never affects his rank. A Maegashira toppling a Yokozuna earns a Kinboshi. Popularity, rivalries, and momentum all build over time.
+    Rank movement follows each rikishi's win-loss differential, animated seat-by-seat after every basho. Yokozuna, Ozeki, and sanyaku promotions ask for your acceptance as the Kyōkai, and you may hand-edit the banzuke yourself before the next tournament. Browse the full Historical Archive and Hall of Fame from the panel dropdown, and use Save/Load to keep a career going across sessions.
+  </div>
+</div>
+
+
+<script>
+/* ---------------- Name pool ---------------- */
+const NAME_PARTS_A = ["Taka","Haru","Kin","Ryu","Waka","Dai","Fuji","Hoku","Ten","Kaze",
+  "Shira","Miyabi","Oro","Ken","Aki","Ko","Sen","Tetsu","Nishi","Higashi","Kuro","Hikari",
+  "Umi","Yama","Iwa","Mine","Nami","Zan","Chika","Tomo","Ryo","Sho","Gen","Rai","Sei"];
+const NAME_PARTS_B = ["nofuji","yama","zan","umi","kaze","ryu","nishiki","take","hana","gawa",
+  "arashi","maru","tora","kuni","sato","matsu","dake","kiri","hikari","minato","fuji","sho"];
+let usedNames = new Set();
+function makeName(){
+  let name;
+  do{
+    const a = NAME_PARTS_A[Math.floor(Math.random()*NAME_PARTS_A.length)];
+    const b = NAME_PARTS_B[Math.floor(Math.random()*NAME_PARTS_B.length)];
+    name = a + b;
+  } while(usedNames.has(name));
+  usedNames.add(name);
+  return name;
+}
+
+/* ---------------- Constants ---------------- */
+const TOTAL_RIKISHI = 42;
+const SEKIWAKE_SLOTS = 2;
+const KOMUSUBI_SLOTS = 2;
+const START_YOKOZUNA = 2;
+const START_OZEKI = 4;
+const BASHO_NAMES = ["Hatsu","Haru","Natsu","Nagoya","Aki","Kyūshū"];
+const BASHO_MONTHS = ["January","March","May","July","September","November"];
+
+let wrestlers = [];
+let currentYear = 2026;
+let bashoMonthIndex = 0;
+let totalBashoCount = 0;
+let kyokaiMembers = [];
+
+let currentBashoLog = [];
+let revealedDay = 0;
+let pendingKinboshiNews = []; // kinboshi notifications collected during the current basho
+
+// --- New: permanent records (kept lightweight — summaries only, not full match logs,
+// so the archive stays fast even after 200+ basho) ---
+let bashoArchive = [];      // one summary entry per completed basho
+let retiredArchive = [];    // career snapshot for every retired rikishi (for Hall of Fame)
+let allTimeRecords = {      // tracked records, updated after every basho
+  mostCareerWins: null, longestWinStreak: null, youngestChampion: null, oldestYokozuna: null
+};
+let soundEnabled = false;
+
+function rand(min,max){ return Math.random()*(max-min)+min; }
+function clamp(v,lo,hi){ return Math.max(lo, Math.min(hi, v)); }
+
+function currentBashoLabel(){ return `${BASHO_NAMES[bashoMonthIndex]} Basho ${currentYear}`; }
+function advanceCalendar(){
+  bashoMonthIndex++;
+  if(bashoMonthIndex>=6){ bashoMonthIndex=0; currentYear++; }
+  totalBashoCount++;
+}
+
+/* ---- Stables (heya) ---- */
+// New feature: every rikishi belongs to a stable. Wrestlers from the same stable
+// avoid facing each other in scheduling (see scheduleDay).
+const STABLE_NAMES = ["Isegahama","Kasugano","Sadogatake","Oitekaze","Kokonoe",
+  "Miyagino","Dewanoumi","Nishonoseki","Takasago"];
+
+/* ---- Kimarite (winning techniques) ---- */
+// New feature: every bout resolves with a named winning technique, weighted so
+// common techniques (yorikiri, oshidashi) come up more often than rare ones.
+const KIMARITE_LIST = [
+  {name:"Yorikiri", weight:18}, {name:"Oshidashi", weight:16}, {name:"Hatakikomi", weight:9},
+  {name:"Uwatenage", weight:8}, {name:"Shitatenage", weight:6}, {name:"Tsukiotoshi", weight:6},
+  {name:"Sukuinage", weight:5}, {name:"Okuridashi", weight:6}, {name:"Oshitaoshi", weight:6},
+  {name:"Yoritaoshi", weight:5}, {name:"Uwatedashinage", weight:4}, {name:"Kotenage", weight:3},
+  {name:"Tsuridashi", weight:2}, {name:"Hikiotoshi", weight:4}, {name:"Tsukidashi", weight:5}
+];
+const KIMARITE_TOTAL_WEIGHT = KIMARITE_LIST.reduce((a,k)=>a+k.weight,0);
+function pickKimarite(winner, loser){
+  // A wrestler's skill edge nudges technique flavor slightly: bigger, stronger
+  // wrestlers lean toward power/force-out techniques; skill-gap upsets lean toward
+  // throws and slap-downs. This is a light bias on top of the base weights.
+  const list = KIMARITE_LIST.map(k=>({...k}));
+  const weightHeavy = winner.weight >= loser.weight + 15;
+  const skillUpset = winner.skill < loser.skill - 8;
+  list.forEach(k=>{
+    if(weightHeavy && (k.name==="Yorikiri"||k.name==="Oshidashi"||k.name==="Yoritaoshi"||k.name==="Oshitaoshi")) k.weight *= 1.4;
+    if(skillUpset && (k.name==="Hatakikomi"||k.name==="Uwatenage"||k.name==="Shitatenage"||k.name==="Hikiotoshi"||k.name==="Sukuinage")) k.weight *= 1.5;
+  });
+  const total = list.reduce((a,k)=>a+k.weight,0);
+  let r = Math.random()*total;
+  for(const k of list){ r -= k.weight; if(r<=0) return k.name; }
+  return list[list.length-1].name;
+}
+
+function newWrestler(tier, tierNum, skill, isDebutant){
+  const ageMonths = isDebutant ? Math.round(rand(18*12,23*12)) : Math.round(rand(19*12,30*12));
+  const baseSkill = clamp(skill,15,99);
+  return {
+    name: makeName(), tier, tierNum, side:"E",
+    skill: baseSkill,
+    height: Math.round(clamp(172 + rand(-14,20), 160, 205)),
+    weight: Math.round(clamp(120 + rand(-38,75), 85, 230)),
+    ageMonths,
+    stable: STABLE_NAMES[Math.floor(Math.random()*STABLE_NAMES.length)],
+    wins:0, losses:0,
+    winsHistory:[],
+    kadoban:false,
+    ozekiYushoStreak:0,
+    careerYusho:0,
+    careerPrizes:0,
+    kyujo:false,
+    ozekiDemotionGrace:false,
+    history:[],
+    isNew:false,
+    // --- Career statistics (new) ---
+    careerWins:0, careerLosses:0,
+    bashoEntered:0, bashoMissed:0,
+    runnerUpCount:0,
+    careerKinboshi:0, firstKinboshiLabel:null, kinboshiLog:[],
+    longestWinStreak:0, longestLoseStreak:0, currentStreak:0,
+    debutBasho: null, // set once the wrestler actually competes for the first time
+    retirementBasho: null,
+    highestRankValue: null, highestRankLabel: null,
+    headToHead: {}, // opponentName -> {wins, losses, lastMeeting}
+    currentBashoDays: [], // transient per-basho hoshitori marks ('W'/'L'/'A')
+    // --- Training categories (new): skill is derived as their average ---
+    stats: {
+      strength: clamp(baseSkill+rand(-10,10),10,99),
+      speed: clamp(baseSkill+rand(-10,10),10,99),
+      technique: clamp(baseSkill+rand(-10,10),10,99),
+      balance: clamp(baseSkill+rand(-10,10),10,99),
+      stamina: clamp(baseSkill+rand(-10,10),10,99),
+      mental: clamp(baseSkill+rand(-10,10),10,99)
+    },
+    // --- Injury system (new): replaces the old plain kyujo boolean with a named injury ---
+    injury: null,          // {name, severity, recoveryBashos, recoveryBashosRemaining, recurrence, impact}
+    injuryHistory: [],     // list of past injury names (drives recurrence odds)
+    returningFromInjury: false, // true for the one basho right after recovery (temporary rustiness)
+    // --- Fan popularity (new) ---
+    popularity: Math.round(clamp(rand(30,55), 0, 100))
+  };
+}
+
+function seedDefaultKyokai(){
+  kyokaiMembers = [];
+  const seeds = [
+    {tier:"Yokozuna", yusho:9, prizes:2},
+    {tier:"Yokozuna", yusho:5, prizes:3},
+    {tier:"Ozeki", yusho:2, prizes:5},
+    {tier:"Ozeki", yusho:1, prizes:3},
+    {tier:"Sekiwake", yusho:0, prizes:6},
+    {tier:"Komusubi", yusho:0, prizes:3},
+    {tier:"Maegashira", yusho:0, prizes:1},
+  ];
+  seeds.forEach(s=>{
+    kyokaiMembers.push({
+      name: makeName(), formerTier: s.tier, careerYusho: s.yusho, careerPrizes: s.prizes,
+      joinedLabel: "Before records began", isChairman: false
+    });
+  });
+  const weights = kyokaiMembers.map(m=> (TIER_ELECTION_WEIGHT[m.formerTier]||1) + m.careerYusho*2 + m.careerPrizes*0.5 + 0.5);
+  const totalW = weights.reduce((a,b)=>a+b,0);
+  let r = Math.random()*totalW;
+  let winner = kyokaiMembers[0];
+  for(let i=0;i<kyokaiMembers.length;i++){ r -= weights[i]; if(r<=0){ winner = kyokaiMembers[i]; break; } }
+  winner.isChairman = true;
+  assignKyokaiRoles();
+}
+
+function buildDefaultBanzuke(){
+  usedNames = new Set();
+  wrestlers = [];
+  currentYear = 2026; bashoMonthIndex = 0; totalBashoCount = 0;
+  bashoArchive = []; retiredArchive = [];
+  allTimeRecords = {mostCareerWins:null, longestWinStreak:null, youngestChampion:null, oldestYokozuna:null};
+  seedDefaultKyokai();
+
+  for(let i=0;i<START_YOKOZUNA;i++) wrestlers.push(newWrestler("Yokozuna",0, 96+rand(-3,3)));
+  for(let i=0;i<START_OZEKI;i++) wrestlers.push(newWrestler("Ozeki",0, 88+rand(-4,4)));
+  for(let i=0;i<SEKIWAKE_SLOTS;i++) wrestlers.push(newWrestler("Sekiwake",0, 80+rand(-4,4)));
+  for(let i=0;i<KOMUSUBI_SLOTS;i++) wrestlers.push(newWrestler("Komusubi",0, 75+rand(-4,4)));
+
+  const maeCount = TOTAL_RIKISHI - START_YOKOZUNA - START_OZEKI - SEKIWAKE_SLOTS - KOMUSUBI_SLOTS;
+  for(let n=1;n<=maeCount;n++){
+    const frac = (n-1)/(maeCount-1);
+    const base = 70 - frac*(70-38);
+    wrestlers.push(newWrestler("Maegashira", n, base+rand(-6,6)));
+  }
+  assignInitialSidesAndNumbers();
+}
+
+function assignInitialSidesAndNumbers(){
+  const groups = {};
+  wrestlers.forEach(w=>{
+    if(!groups[w.tier]) groups[w.tier] = [];
+    groups[w.tier].push(w);
+  });
+  Object.entries(groups).forEach(([tier,list])=>{
+    if(tier==="Maegashira") return;
+    list.forEach((w,i)=>{ w.side = i%2===0 ? "E" : "W"; w.tierNum = Math.floor(i/2)+1; });
+  });
+}
+
+function tierWeight(tierName){
+  if(tierName==="Yokozuna") return 0;
+  if(tierName==="Ozeki") return 1000;
+  if(tierName==="Sekiwake") return 2000;
+  if(tierName==="Komusubi") return 3000;
+  return 4000;
+}
+function tierOrderIndex(w){ return tierWeight(w.tier) + (w.tierNum||0); }
+
+/* ---------------- Rendering: banzuke ---------------- */
+function rankLabel(w){
+  const countInTier = wrestlers.filter(x=>x.tier===w.tier).length;
+  if(countInTier>2) return `${w.tier} #${w.tierNum}`;
+  return w.tier;
+}
+
+function renderBanzuke(showRecords, changeTags, kadobanSet, newSet){
+  const body = document.getElementById("banzukeBody");
+  body.innerHTML = "";
+  const sorted = [...wrestlers].sort((a,b)=> tierOrderIndex(a)-tierOrderIndex(b) || (a.side==="E"?-1:1));
+  const byLabel = new Map();
+  sorted.forEach(w=>{
+    const label = rankLabel(w);
+    if(!byLabel.has(label)) byLabel.set(label, {E:null, W:null, tierClass:tierClassFor(w)});
+    const slot = byLabel.get(label);
+    if(!slot.E) slot.E = w; else slot.W = w;
+  });
+  let lastMajorTier = null;
+  byLabel.forEach((pair, label)=>{
+    const majorTier = pair.E ? pair.E.tier : pair.W.tier;
+    if(majorTier !== lastMajorTier){
+      const lbl = document.createElement("div");
+      lbl.className = "tier-label";
+      lbl.textContent = majorTier;
+      body.appendChild(lbl);
+      lastMajorTier = majorTier;
+    }
+    const row = document.createElement("div");
+    row.className = `row ${pair.tierClass}`;
+    row.innerHTML = `
+      <div class="name east">${wrestlerCell(pair.E, showRecords, changeTags, kadobanSet, newSet)}</div>
+      <div class="rankcell">${label}</div>
+      <div class="name west">${wrestlerCell(pair.W, showRecords, changeTags, kadobanSet, newSet)}</div>
+    `;
+    body.appendChild(row);
+  });
+}
+
+function tierClassFor(w){
+  if(w.tier==="Yokozuna") return "yokozuna";
+  if(w.tier==="Ozeki") return "ozeki";
+  if(w.tier==="Maegashira") return "maegashira";
+  return "";
+}
+
+function wrestlerCell(w, showRecords, changeTags, kadobanSet, newSet){
+  if(!w) return "";
+  let badges = "";
+  if(newSet && newSet.has(w.name)) badges += `<span class="badge new">NEW</span>`;
+  if(changeTags && changeTags.has(w.name)){
+    const dir = changeTags.get(w.name);
+    if(dir==="up") badges += `<span class="badge up">▲</span>`;
+    else if(dir==="down") badges += `<span class="badge down">▼</span>`;
+  }
+  if(kadobanSet && kadobanSet.has(w.name)) badges += `<span class="badge kadoban">KADOBAN</span>`;
+  if(w.kyujo) badges += `<span class="badge kyujo">KYŪJO</span>`;
+  const record = showRecords ? `<span class="record">${w.wins}-${w.losses}</span>` : "";
+  return `${badges}<span>${w.name}</span>${record}`;
+}
+
+/* ---------------- Match simulation ---------------- */
+// New: momentum. A winning streak gives a small temporary confidence boost, a
+// losing streak a small penalty — capped so it can never overpower the skill gap.
+function momentumBonus(w){ return clamp((w.currentStreak||0) * 0.4, -6, 6); }
+function winProb(skillA, skillB, wA, wB){
+  const momA = wA ? momentumBonus(wA) : 0;
+  const momB = wB ? momentumBonus(wB) : 0;
+  return 1/(1+Math.pow(10, ((skillB+momB)-(skillA+momA))/18));
+}
+
+// Real sumo scheduling: on early days, elite ranks (Yokozuna, Ozeki, Sekiwake, Komusubi)
+// are matched down against upper Maegashira rather than each other; as the basho
+// progresses the gap closes, so by the final days they cluster with their own peers
+// (Yokozuna vs Yokozuna, Ozeki vs Ozeki, sanyaku vs sanyaku/Ozeki). Maegashira mostly
+// just fight nearby-ranked opponents throughout.
+const ELITE_DAY1_TARGET = {Yokozuna:3600, Ozeki:4008, Sekiwake:4006, Komusubi:4004};
+function effectiveKey(w, day){
+  if(w.tier==="Maegashira") return tierOrderIndex(w) + rand(-4,4);
+  const home = tierOrderIndex(w);
+  const target = ELITE_DAY1_TARGET[w.tier];
+  const progress = (day-1)/14; // 0 on day 1, 1 on day 15
+  const key = home + (target-home)*(1-progress);
+  return key + rand(-3,3);
+}
+
+function scheduleDay(activeList, opponentHistory, day){
+  let pool = activeList.slice();
+  const pairs = [];
+
+  // Traditional day-1 openers: Yokozuna East vs Komusubi West, Yokozuna West vs Maegashira 1 East
+  if(day===1){
+    const yE = pool.find(w=>w.tier==="Yokozuna" && w.side==="E");
+    const kW = pool.find(w=>w.tier==="Komusubi" && w.side==="W");
+    if(yE && kW && yE.stable!==kW.stable){
+      pairs.push([yE,kW]);
+      opponentHistory.get(yE.name).add(kW.name); opponentHistory.get(kW.name).add(yE.name);
+      pool = pool.filter(w=>w!==yE && w!==kW);
+    }
+    const yW = pool.find(w=>w.tier==="Yokozuna" && w.side==="W");
+    const m1E = pool.find(w=>w.tier==="Maegashira" && w.tierNum===1 && w.side==="E");
+    if(yW && m1E && yW.stable!==m1E.stable){
+      pairs.push([yW,m1E]);
+      opponentHistory.get(yW.name).add(m1E.name); opponentHistory.get(m1E.name).add(yW.name);
+      pool = pool.filter(w=>w!==yW && w!==m1E);
+    }
+  }
+
+  const order = pool.map(w=>({w, key: effectiveKey(w, day)}));
+  order.sort((a,b)=>a.key-b.key);
+  const list = order.map(o=>o.w);
+  const used = new Set();
+  for(let i=0;i<list.length;i++){
+    const a = list[i];
+    if(used.has(a.name)) continue;
+    let bIndex = -1;
+    // Pass 1: an opponent not yet faced this basho AND not from the same stable
+    for(let j=i+1;j<list.length;j++){
+      const b = list[j];
+      if(used.has(b.name)) continue;
+      if(b.stable===a.stable) continue;
+      if(!opponentHistory.get(a.name).has(b.name)){ bIndex=j; break; }
+    }
+    // Pass 2: relax the "not faced before" rule, but keep avoiding same stable
+    if(bIndex===-1){
+      for(let j=i+1;j<list.length;j++){
+        const b = list[j];
+        if(used.has(b.name)) continue;
+        if(b.stable===a.stable) continue;
+        bIndex=j; break;
+      }
+    }
+    // Pass 3: last resort, allow same-stable only if truly no one else is available
+    if(bIndex===-1){
+      for(let j=i+1;j<list.length;j++){ if(!used.has(list[j].name)){ bIndex=j; break; } }
+    }
+    if(bIndex===-1) continue;
+    const b = list[bIndex];
+    used.add(a.name); used.add(b.name);
+    pairs.push([a,b]);
+  }
+  return pairs;
+}
+
+function generateBashoLog(activeList){
+  const opponentHistory = new Map(activeList.map(w=>[w.name, new Set()]));
+  const log = [];
+  for(let day=0; day<15; day++){
+    const pairs = scheduleDay(activeList, opponentHistory, day+1);
+    const dayResults = pairs.map(([a,b])=>{
+      const probA = winProb(a.skill, b.skill, a, b);
+      const aWon = Math.random() < probA;
+      opponentHistory.get(a.name).add(b.name);
+      opponentHistory.get(b.name).add(a.name);
+      const winner = aWon ? a : b, loser = aWon ? b : a;
+      const kimarite = pickKimarite(winner, loser);
+      return {aName:a.name, bName:b.name, aWon, aProb: probA, kimarite};
+    });
+    log.push(dayResults);
+  }
+  return log;
+}
+
+function applyDayResults(dayResults){
+  dayResults.forEach(r=>{
+    const a = wrestlers.find(w=>w.name===r.aName);
+    const b = wrestlers.find(w=>w.name===r.bName);
+    if(!a || !b) return;
+    if(r.aWon){ a.wins++; b.losses++; } else { b.wins++; a.losses++; }
+
+    const winner = r.aWon ? a : b, loser = r.aWon ? b : a;
+
+    // --- Streak tracking ---
+    winner.currentStreak = winner.currentStreak>0 ? winner.currentStreak+1 : 1;
+    winner.longestWinStreak = Math.max(winner.longestWinStreak, winner.currentStreak);
+    loser.currentStreak = loser.currentStreak<0 ? loser.currentStreak-1 : -1;
+    loser.longestLoseStreak = Math.max(loser.longestLoseStreak, -loser.currentStreak);
+
+    // --- Head-to-head tracking (with last-meeting label for the rivalry system) ---
+    if(!winner.headToHead[loser.name]) winner.headToHead[loser.name] = {wins:0, losses:0, lastMeeting:null};
+    if(!loser.headToHead[winner.name]) loser.headToHead[winner.name] = {wins:0, losses:0, lastMeeting:null};
+    winner.headToHead[loser.name].wins++;
+    loser.headToHead[winner.name].losses++;
+    winner.headToHead[loser.name].lastMeeting = currentBashoLabel();
+    loser.headToHead[winner.name].lastMeeting = currentBashoLabel();
+
+    // --- Hoshitori marks for this basho ---
+    a.currentBashoDays.push(r.aWon ? "W" : "L");
+    b.currentBashoDays.push(r.aWon ? "L" : "W");
+
+    // --- Kinboshi: a Maegashira defeating a Yokozuna ---
+    if(winner.tier==="Maegashira" && loser.tier==="Yokozuna"){
+      winner.careerKinboshi++;
+      if(!winner.firstKinboshiLabel) winner.firstKinboshiLabel = currentBashoLabel();
+      winner.kinboshiLog.push(`${currentBashoLabel()} vs ${loser.name}`);
+      pendingKinboshiNews.push(`⭐ KINBOSHI! ${winner.name} (Maegashira) upsets Yokozuna ${loser.name} — his ${winner.careerKinboshi===1?"first":winner.careerKinboshi+"th"} career gold star!`);
+      playTone(880, 250);
+    }
+  });
+}
+
+/* ---------------- Age / injury / retirement ---------------- */
+const MAX_KYUJO_PER_BASHO = 4;
+const FORCE_RETIRE_AGE = 45;
+const KYOKAI_JOIN_CHANCE = {Yokozuna:0.95, Ozeki:0.7, Sekiwake:0.4, Komusubi:0.35, Maegashira:0.15};
+const TIER_ELECTION_WEIGHT = {Yokozuna:8, Ozeki:4, Sekiwake:2, Komusubi:1.5, Maegashira:1};
+
+// --- New: named injury catalog, replacing the old plain kyujo boolean ---
+// Each type carries severity, recovery time (in basho), a recurrence tendency,
+// and a performance impact (temporary skill hit applied on return).
+const INJURY_TYPES = [
+  {name:"Minor ankle sprain", severity:1, recoveryBashos:1, recurrence:0.15, impact:6},
+  {name:"Knee ligament damage", severity:3, recoveryBashos:2, recurrence:0.25, impact:14},
+  {name:"Back injury", severity:2, recoveryBashos:1, recurrence:0.20, impact:10},
+  {name:"Shoulder dislocation", severity:2, recoveryBashos:2, recurrence:0.20, impact:12},
+  {name:"Hamstring tear", severity:2, recoveryBashos:1, recurrence:0.22, impact:9},
+  {name:"Neck injury", severity:3, recoveryBashos:2, recurrence:0.18, impact:13}
+];
+function rollInjury(w){
+  // Minor injuries are far more common than severe ones, but a wrestler with a
+  // history of a given injury is more likely to suffer it again (recurrence).
+  const pool = INJURY_TYPES.map(t=>({...t, weight: 1/t.severity}));
+  pool.forEach(t=>{
+    const timesBefore = w.injuryHistory.filter(n=>n===t.name).length;
+    if(timesBefore>0) t.weight *= (1 + t.recurrence*timesBefore*2);
+  });
+  const total = pool.reduce((a,t)=>a+t.weight,0);
+  let r = Math.random()*total;
+  for(const t of pool){ r -= t.weight; if(r<=0) return t; }
+  return pool[0];
+}
+
+// --- New: training & ageing. Called once per basho for every wrestler, before
+// injuries/retirement are resolved. Young rikishi improve faster; veterans lose
+// physical stats (speed, stamina, strength) but can still gain technique/mental
+// experience. Skill is always the average of the six training categories. ---
+function applyTrainingAndAging(w){
+  const ageYears = w.ageMonths/12;
+  const categories = ["strength","speed","technique","balance","stamina","mental"];
+  if(ageYears < 27){
+    const cat = categories[Math.floor(Math.random()*categories.length)];
+    w.stats[cat] = clamp(w.stats[cat] + rand(0.8,2.2), 10, 100);
+  } else if(ageYears < 32){
+    const cat = categories[Math.floor(Math.random()*categories.length)];
+    w.stats[cat] = clamp(w.stats[cat] + rand(-0.3,1.0), 10, 100);
+  } else {
+    w.stats.speed = clamp(w.stats.speed - rand(0.3,1.4), 10, 100);
+    w.stats.stamina = clamp(w.stats.stamina - rand(0.2,1.2), 10, 100);
+    w.stats.strength = clamp(w.stats.strength - rand(0.1,0.9), 10, 100);
+    if(Math.random()<0.5) w.stats.technique = clamp(w.stats.technique + rand(0,0.8), 10, 100);
+    if(Math.random()<0.4) w.stats.mental = clamp(w.stats.mental + rand(0,0.8), 10, 100);
+  }
+  const avg = (w.stats.strength+w.stats.speed+w.stats.technique+w.stats.balance+w.stats.stamina+w.stats.mental)/6;
+  w.skill = clamp(avg, 15, 99);
+}
+
+function injuryProb(ageYears){
+  let p = 0.015;
+  if(ageYears>30) p += (ageYears-30)*0.006;
+  if(ageYears>40) p += (ageYears-40)*0.025;
+  return clamp(p,0.01,0.55);
+}
+function retireProb(ageYears, injured){
+  let p = 0;
+  if(ageYears>=32) p += (ageYears-32)*0.012;
+  if(ageYears>=40) p += (ageYears-40)*0.05;
+  if(injured) p += 0.07;
+  return clamp(p,0,0.9);
+}
+
+function releaseAndReplace(list, wrestlersRef, news, newDebutants, reasonType){
+  wrestlersRef = wrestlersRef.filter(w=> !list.includes(w));
+  list.forEach(w=>{
+    if(reasonType==="retirement") attemptKyokaiInduction(w, news);
+    const debutant = newWrestler("Maegashira", 0, 45+rand(-8,8), true);
+    debutant.isNew = true;
+    newDebutants.add(debutant.name);
+    wrestlersRef.push(debutant);
+    news.push(`${debutant.name} enters the Makuuchi division as a fresh Maegashira debutant, age ${Math.floor(debutant.ageMonths/12)}.`);
+  });
+  return wrestlersRef;
+}
+
+function attemptKyokaiInduction(w, news){
+  const chance = KYOKAI_JOIN_CHANCE[w.tier] ?? 0.15;
+  if(Math.random() < chance){
+    kyokaiMembers.push({
+      name: w.name, formerTier: w.tier, careerYusho: w.careerYusho, careerPrizes: w.careerPrizes,
+      joinedLabel: currentBashoLabel(), isChairman: false, role: "Elder"
+    });
+    assignKyokaiRoles();
+    news.push(`${w.name} retires after a career as high as ${w.tier} and joins the Sumo Kyōkai as an elder.`);
+  } else {
+    news.push(`${w.name} retires from professional sumo after a career as high as ${w.tier}.`);
+  }
+}
+
+// --- Expanded Kyokai: assign Chairman / Directors / Committee Members / Elders
+// based on career distinction, recomputed whenever membership changes. ---
+function assignKyokaiRoles(){
+  const weighted = kyokaiMembers.map(m=>({
+    m, weight: (TIER_ELECTION_WEIGHT[m.formerTier]||1) + m.careerYusho*2 + m.careerPrizes*0.5
+  })).sort((a,b)=> b.weight-a.weight);
+  weighted.forEach((entry,i)=>{
+    if(entry.m.isChairman) entry.m.role = "Chairman";
+    else if(i<3) entry.m.role = "Director";
+    else if(i<7) entry.m.role = "Committee Member";
+    else entry.m.role = "Elder";
+  });
+}
+
+function checkChairmanElection(news){
+  if(totalBashoCount>0 && totalBashoCount % 12 === 0){
+    if(kyokaiMembers.length===0) return;
+    const weights = kyokaiMembers.map(m=> (TIER_ELECTION_WEIGHT[m.formerTier]||1) + m.careerYusho*2 + m.careerPrizes*0.5 + 0.5);
+    const totalW = weights.reduce((a,b)=>a+b,0);
+    let r = Math.random()*totalW;
+    let winner = kyokaiMembers[0];
+    for(let i=0;i<kyokaiMembers.length;i++){ r -= weights[i]; if(r<=0){ winner = kyokaiMembers[i]; break; } }
+    kyokaiMembers.forEach(m=> m.isChairman=false);
+    winner.isChairman = true;
+    assignKyokaiRoles();
+    news.push(`⛩ Sumo Kyōkai election held: ${winner.name} (former ${winner.formerTier}) is elected Chairman of the Sumo Kyōkai.`);
+  }
+}
+
+// --- New: permanent career snapshot saved when a rikishi retires, feeding the Hall of Fame ---
+function archiveRetiree(w){
+  const totalGames = w.careerWins + w.careerLosses;
+  retiredArchive.push({
+    name: w.name, stable: w.stable,
+    highestRankLabel: w.highestRankLabel || rankLabel(w),
+    careerWins: w.careerWins, careerLosses: w.careerLosses,
+    winPct: totalGames>0 ? (w.careerWins/totalGames*100) : 0,
+    careerYusho: w.careerYusho, careerPrizes: w.careerPrizes, careerKinboshi: w.careerKinboshi,
+    bashoEntered: w.bashoEntered, longestWinStreak: w.longestWinStreak,
+    debutBasho: w.debutBasho, retirementBasho: w.retirementBasho,
+    ageAtRetirement: Math.floor(w.ageMonths/12),
+    yokozunaBashoCount: w.yokozunaBashoCount||0, ozekiBashoCount: w.ozekiBashoCount||0
+  });
+}
+
+// Runs BEFORE a basho's matches: ages everyone up, trains them, continues/rolls
+// injuries (capped so kyujo never balloons), resolves age-driven retirements, and
+// replaces anyone who retires with a debutant.
+function determineInjuriesAndRetirements(){
+  const news = [];
+  const newDebutants = new Set();
+
+  wrestlers.forEach(w=>{ w.ageMonths += 2; applyTrainingAndAging(w); });
+
+  // Step 1: continue any existing multi-basho injury recoveries first
+  const stillInjuredNames = [];
+  wrestlers.forEach(w=>{
+    if(w.injury){
+      w.injury.recoveryBashosRemaining--;
+      if(w.injury.recoveryBashosRemaining>0){
+        w.kyujo = true;
+        stillInjuredNames.push(w.name);
+        news.push(`${w.name} continues his recovery from ${w.injury.name.toLowerCase()} and remains on kyūjo.`);
+      } else {
+        w.kyujo = false;
+        w.returningFromInjury = true;
+        w.skill = clamp(w.skill - w.injury.impact*0.3, 15, 99); // temporary rust, one basho only
+        news.push(`${w.name} returns from ${w.injury.name.toLowerCase()}, though still shaking off some rust.`);
+        w.injury = null;
+      }
+    } else {
+      w.kyujo = false;
+      w.returningFromInjury = false;
+    }
+  });
+
+  // Step 2: roll NEW injuries only for wrestlers not already sidelined, capped overall
+  const eligible = wrestlers.filter(w=>!w.kyujo);
+  const injuryRolls = eligible.map(w=>{
+    const ageYears = w.ageMonths/12;
+    return {w, rolled: Math.random() < injuryProb(ageYears)};
+  });
+  let candidates = injuryRolls.filter(r=>r.rolled);
+  const remainingCapacity = Math.max(0, MAX_KYUJO_PER_BASHO - stillInjuredNames.length);
+  if(candidates.length > remainingCapacity){
+    candidates = candidates.sort(()=>Math.random()-0.5).slice(0, remainingCapacity);
+  }
+  candidates.forEach(({w})=>{
+    const type = rollInjury(w);
+    w.injury = {...type, recoveryBashosRemaining: type.recoveryBashos};
+    w.injuryHistory.push(type.name);
+    w.kyujo = true;
+    const durationNote = type.recoveryBashos>1 ? ` (expected ${type.recoveryBashos}-basho recovery)` : "";
+    if(w.tier==="Yokozuna") news.push(`${w.name} suffers a ${type.name.toLowerCase()}${durationNote} and takes kyūjo — as Yokozuna his rank is unaffected by the absence.`);
+    else news.push(`${w.name} suffers a ${type.name.toLowerCase()}${durationNote} and takes kyūjo.`);
+  });
+
+  // Step 3: age-driven retirement rolls for everyone
+  const retirees = [];
+  wrestlers.forEach(w=>{
+    const ageYears = w.ageMonths/12;
+    const forceRetire = ageYears >= FORCE_RETIRE_AGE;
+    const willRetire = forceRetire || Math.random() < retireProb(ageYears, w.kyujo);
+    if(willRetire) retirees.push(w);
+  });
+
+  retirees.forEach(w=>{
+    const ageYears = Math.floor(w.ageMonths/12);
+    w.retirementBasho = currentBashoLabel();
+    archiveRetiree(w);
+    if(w.tier==="Yokozuna") news.push(`${w.name} announces retirement as Yokozuna at age ${ageYears}, remaining an influential figure in the sport.`);
+    else if(w.tier==="Ozeki") news.push(`${w.name} retires from Ozeki at age ${ageYears}.`);
+    else news.push(`${w.name} retires from sumo at age ${ageYears}.`);
+  });
+  wrestlers = releaseAndReplace(retirees, wrestlers, news, newDebutants, "retirement");
+
+  return {news, newDebutants};
+}
+
+/* ---------------- Champion / prizes ---------------- */
+/* ---- NHK-style headline generator ---- */
+// New feature: varied templated headlines for notable events, chosen at random
+// so the news feed doesn't read identically every basho.
+const CHAMPION_HEADLINE_TEMPLATES = [
+  (w,rec)=> `${w.name} captures the Emperor's Cup with a ${rec} record!`,
+  (w,rec)=> `${w.name} lifts the Emperor's Cup, finishing ${rec}.`,
+  (w,rec)=> `Championship glory for ${w.name} — a commanding ${rec} tournament.`,
+  (w,rec)=> `${w.name} is your ${currentBashoLabel()} champion at ${rec}.`
+];
+const UPSET_HEADLINE_TEMPLATES = [
+  (w,l)=> `Huge upset: ${w.name} shocks ${l.name} on the final days.`,
+  (w,l)=> `${w.name} stuns the crowd with a dramatic win over ${l.name}.`
+];
+function pickTemplate(list){ return list[Math.floor(Math.random()*list.length)]; }
+
+// --- New: bout commentary, generated from skill gap, age, and momentum context ---
+function generateCommentary(winner, loser, dayNum){
+  const gap = winner.skill - loser.skill;
+  const lines = [];
+  if(gap <= -12) lines.push("Huge upset!");
+  else if(gap >= 15) lines.push("Dominant victory.");
+  if(winner.currentStreak>=5) lines.push(`${winner.name} extends his streak to ${winner.currentStreak}.`);
+  if(Math.floor(winner.ageMonths/12)<=21) lines.push("A young prospect shines.");
+  if(Math.floor(winner.ageMonths/12)>=34) lines.push("The veteran survives.");
+  if(dayNum===15 && winner.wins>=13) lines.push("A championship-deciding bout.");
+  if(lines.length===0) return null;
+  return lines[Math.floor(Math.random()*lines.length)];
+}
+
+function determineChampionAndPrizes(){
+  const activeWrestlers = wrestlers.filter(w=>!w.kyujo);
+  const maxWins = Math.max(...activeWrestlers.map(w=>w.wins));
+  const contenders = activeWrestlers.filter(w=>w.wins===maxWins);
+  let champion, playoffNote = null;
+  if(contenders.length===1){
+    champion = contenders[0];
+  } else {
+    champion = contenders[Math.floor(Math.random()*contenders.length)];
+    const others = contenders.filter(w=>w!==champion).map(w=>w.name).join(", ");
+    playoffNote = `Won a playoff over ${others} after tying at ${maxWins}-${15-maxWins}.`;
+  }
+  champion.careerYusho++;
+
+  // Runner-up: the best record among active wrestlers who did not win the championship
+  const nonChampion = activeWrestlers.filter(w=>w!==champion);
+  if(nonChampion.length>0){
+    const runnerUpWins = Math.max(...nonChampion.map(w=>w.wins));
+    nonChampion.filter(w=>w.wins===runnerUpWins).forEach(w=> w.runnerUpCount++);
+  }
+
+  const eligible = activeWrestlers.filter(w=>
+    w!==champion &&
+    (w.tier==="Sekiwake"||w.tier==="Komusubi"||w.tier==="Maegashira") &&
+    w.wins>=8
+  ).sort((a,b)=> b.wins-a.wins);
+
+  const prizeLabels = ["Shukun-shō (Outstanding Performance)","Kanto-shō (Fighting Spirit)","Gino-shō (Technique)"];
+  const prizes = [];
+  for(let i=0;i<3 && i<eligible.length;i++) prizes.push({label:prizeLabels[i], winner:eligible[i]});
+
+  const headline = pickTemplate(CHAMPION_HEADLINE_TEMPLATES)(champion, `${champion.wins}-${champion.losses}`);
+
+  return {champion, playoffNote, prizes, headline};
+}
+
+function recordHistory(champion, prizes){
+  const honorMap = new Map();
+  honorMap.set(champion.name, "Yushō (Champion)");
+  prizes.forEach(p=>{ honorMap.set(p.winner.name, p.label.split(" (")[0]); p.winner.careerPrizes++; });
+  wrestlers.forEach(w=>{
+    let honor = honorMap.get(w.name) || null;
+    if(!honor && w.kyujo) honor = "Kyūjo (Rest)";
+
+    // --- Career stat bookkeeping (new) ---
+    if(w.kyujo) w.bashoMissed++; else w.bashoEntered++;
+    w.careerWins += w.wins; w.careerLosses += w.losses;
+    if(!w.debutBasho) w.debutBasho = currentBashoLabel();
+    if(w.tier==="Yokozuna") w.yokozunaBashoCount = (w.yokozunaBashoCount||0) + 1;
+    if(w.tier==="Ozeki") w.ozekiBashoCount = (w.ozekiBashoCount||0) + 1;
+    const rankValue = tierWeight(w.tier) + (w.tierNum||0);
+    if(w.highestRankValue===null || rankValue < w.highestRankValue){
+      w.highestRankValue = rankValue;
+      w.highestRankLabel = rankLabel(w);
+    }
+
+    w.history.push({
+      basho: currentBashoLabel(), rank: rankLabel(w), wins: w.wins, losses: w.losses, honor,
+      hoshitori: w.currentBashoDays.slice() // ○/● record for this basho (see renderDossier)
+    });
+    w.currentBashoDays = []; // reset for next basho
+  });
+}
+
+/* ---------------- Promotion / demotion / relegation ---------------- */
+function processRankChanges(champion){
+  const news = [];
+  const newDebutants = new Set();
+
+  wrestlers.forEach(w=>{
+    if(w.tier==="Ozeki"){
+      if(w===champion) w.ozekiYushoStreak++;
+      else w.ozekiYushoStreak = 0;
+    }
+  });
+
+  const promoteToYokozuna = wrestlers.filter(w=> w.tier==="Ozeki" && w.ozekiYushoStreak>=2);
+  promoteToYokozuna.forEach(w=>{
+    const accept = confirm(`As the Sumo Kyōkai: ${w.name} has won back-to-back tournament championships as Ozeki. Promote him to Yokozuna?`);
+    if(accept){
+      news.push(`${w.name} is promoted to Yokozuna after back-to-back tournament championships as Ozeki!`);
+      w.tier = "Yokozuna"; w.tierNum = 0; w.kadoban=false; w.ozekiYushoStreak=0; w.ozekiDemotionGrace=false;
+    } else {
+      news.push(`The Kyōkai declines to promote ${w.name} to Yokozuna despite back-to-back championships — he remains Ozeki.`);
+    }
+  });
+
+  const demoteFromOzeki = [];
+  wrestlers.forEach(w=>{
+    if(w.tier==="Ozeki"){
+      if(w.wins<8){
+        if(w.kadoban) demoteFromOzeki.push(w);
+        else { w.kadoban = true; news.push(`${w.name} posts a losing record as Ozeki and is now kadoban.`); }
+      } else {
+        if(w.kadoban) news.push(`${w.name} clears kadoban status with a winning record.`);
+        w.kadoban = false;
+      }
+    }
+  });
+  demoteFromOzeki.forEach(w=>{
+    news.push(`${w.name} is demoted from Ozeki to Sekiwake, but keeps one tournament's grace to earn it straight back with 10+ wins.`);
+    w.tier = "Sekiwake"; w.tierNum = 0; w.kadoban=false; w.ozekiYushoStreak=0; w.ozekiDemotionGrace=true;
+  });
+
+  const graceCandidates = wrestlers.filter(w=> w.tier==="Sekiwake" && w.ozekiDemotionGrace);
+  graceCandidates.forEach(w=>{
+    if(w.wins>=10){
+      const accept = confirm(`As the Sumo Kyōkai: ${w.name} posted ${w.wins} wins in his first tournament back at Sekiwake, earning grace promotion. Return him to Ozeki?`);
+      if(accept){
+        news.push(`${w.name} storms back to Ozeki with ${w.wins} wins in his first tournament back at Sekiwake!`);
+        w.tier = "Ozeki"; w.tierNum = 0; w.kadoban=false;
+      } else {
+        news.push(`The Kyōkai declines ${w.name}'s grace promotion despite ${w.wins} wins — he must now meet the standard 33-win rule.`);
+      }
+    } else {
+      news.push(`${w.name} falls short of the grace requirement at Sekiwake — he must now meet the standard 33-win rule.`);
+    }
+    w.ozekiDemotionGrace = false;
+  });
+
+  const promoteToOzeki = wrestlers.filter(w=>
+    w.tier==="Sekiwake" && w.winsHistory.length>=3 && w.winsHistory.reduce((a,b)=>a+b,0) >= 33
+  );
+  promoteToOzeki.forEach(w=>{
+    const total = w.winsHistory.reduce((a,b)=>a+b,0);
+    const accept = confirm(`As the Sumo Kyōkai: ${w.name} has ${total} wins across his last 3 tournaments as Sekiwake, meeting the Ozeki standard. Promote him to Ozeki?`);
+    if(accept){
+      news.push(`${w.name} is promoted to Ozeki with ${total} wins across the last 3 tournaments as Sekiwake.`);
+      w.tier = "Ozeki"; w.tierNum = 0; w.kadoban=false;
+    } else {
+      news.push(`The Kyōkai declines to promote ${w.name} to Ozeki despite meeting the 33-win standard.`);
+    }
+  });
+
+  const maeCountNow = wrestlers.filter(w=>w.tier==="Maegashira").length;
+  const atRiskZone = Math.max(1, Math.floor(maeCountNow*0.15));
+  const released = wrestlers.filter(w=>
+    w.tier==="Maegashira" && w.tierNum >= (maeCountNow - atRiskZone + 1) && w.wins<=3
+  );
+  released.forEach(w=>{
+    news.push(`${w.name} falls to a ${w.wins}-${w.losses} record at the bottom of Maegashira and is relegated out of the Makuuchi division.`);
+  });
+  wrestlers = releaseAndReplace(released, wrestlers, news, newDebutants, "relegation");
+
+  return {news, kadobanSet: new Set(wrestlers.filter(w=>w.kadoban).map(w=>w.name)), newDebutants};
+}
+
+/* ---------------- Rank movement & reassignment ---------------- */
+function scoreOf(w){ return w.wins - w.losses; }
+function reorderByMovement(orderedList){
+  const scored = orderedList.map((w,i)=>({w, currentIndex:i, score: scoreOf(w)}));
+  scored.forEach(s=>{ s.targetIndex = s.currentIndex - s.score; });
+  scored.sort((a,b)=>{
+    if(a.targetIndex!==b.targetIndex) return a.targetIndex-b.targetIndex;
+    if(b.score!==a.score) return b.score-a.score;
+    return a.currentIndex-b.currentIndex;
+  });
+  return scored.map(s=>s.w);
+}
+
+function reassignRanks(){
+  const yokoBaseline = wrestlers.filter(w=>w.tier==="Yokozuna").sort((a,b)=> tierOrderIndex(a)-tierOrderIndex(b) || (a.side==="E"?-1:1));
+  const ozekiBaseline = wrestlers.filter(w=>w.tier==="Ozeki").sort((a,b)=> tierOrderIndex(a)-tierOrderIndex(b) || (a.side==="E"?-1:1));
+  const poolAll = wrestlers.filter(w=> w.tier!=="Yokozuna" && w.tier!=="Ozeki");
+  const poolExisting = poolAll.filter(w=>!w.isNew).sort((a,b)=> tierOrderIndex(a)-tierOrderIndex(b) || (a.side==="E"?-1:1));
+  const poolDebutants = poolAll.filter(w=>w.isNew);
+
+  const yokoGroup = reorderByMovement(yokoBaseline);
+  const ozekiGroup = reorderByMovement(ozekiBaseline);
+  const pool = [...reorderByMovement(poolExisting), ...poolDebutants];
+
+  const changeTags = new Map();
+  function place(list, tierName){
+    list.forEach((w,i)=>{
+      const beforeWeight = w.prevTier ? tierWeight(w.prevTier) + (w.prevTierNum||0) : null;
+      w.tier = tierName;
+      w.tierNum = Math.floor(i/2)+1;
+      w.side = i%2===0 ? "E" : "W";
+      if(beforeWeight!==null && !w.isNew){
+        const afterWeight = tierWeight(tierName) + w.tierNum;
+        if(afterWeight<beforeWeight) changeTags.set(w.name,"up");
+        else if(afterWeight>beforeWeight) changeTags.set(w.name,"down");
+      }
+    });
+  }
+
+  place(yokoGroup, "Yokozuna");
+  place(ozekiGroup, "Ozeki");
+  const sekiwake = pool.slice(0, SEKIWAKE_SLOTS);
+  const komusubi = pool.slice(SEKIWAKE_SLOTS, SEKIWAKE_SLOTS+KOMUSUBI_SLOTS);
+  const maegashira = pool.slice(SEKIWAKE_SLOTS+KOMUSUBI_SLOTS);
+
+  function confirmSanyakuEntry(group, tierName){
+    for(let i=0;i<group.length;i++){
+      const w = group[i];
+      if(w.prevTier==="Maegashira" && !w.isNew){
+        const accept = confirm(`As the Sumo Kyōkai: promote ${w.name} from Maegashira to ${tierName}?`);
+        if(!accept && maegashira.length>0){
+          const replacement = maegashira.shift();
+          group[i] = replacement;
+          maegashira.push(w);
+        }
+      }
+    }
+  }
+  confirmSanyakuEntry(sekiwake, "Sekiwake");
+  confirmSanyakuEntry(komusubi, "Komusubi");
+
+  place(sekiwake, "Sekiwake");
+  place(komusubi, "Komusubi");
+  place(maegashira, "Maegashira");
+
+  wrestlers = [...yokoGroup, ...ozekiGroup, ...sekiwake, ...komusubi, ...maegashira];
+  return changeTags;
+}
+
+/* ---------------- UI wiring ---------------- */
+const beginBtn = document.getElementById("beginBtn");
+const nextDayBtn = document.getElementById("nextDayBtn");
+const skipDayBtn = document.getElementById("skipDayBtn");
+const resetBtn = document.getElementById("resetBtn");
+const statusLine = document.getElementById("statusLine");
+const dayCounter = document.getElementById("dayCounter");
+const bashoLabel = document.getElementById("bashoLabel");
+const calendarLabel = document.getElementById("calendarLabel");
+const resultsPanel = document.getElementById("resultsPanel");
+const resultsBashoLabel = document.getElementById("resultsBashoLabel");
+const championBlock = document.getElementById("championBlock");
+const prizeTable = document.getElementById("prizeTable").querySelector("tbody");
+const newsList = document.getElementById("newsList");
+const boutsPanel = document.getElementById("boutsPanel");
+const boutsTitle = document.getElementById("boutsTitle");
+const boutsList = document.getElementById("boutsList");
+const dohyoPanel = document.getElementById("dohyoPanel");
+const dohyoRing = document.getElementById("dohyoRing");
+const dohyoNames = document.getElementById("dohyoNames");
+const yokozunaEntrance = document.getElementById("yokozunaEntrance");
+const skipCeremonyBtn = document.getElementById("skipCeremonyBtn");
+const dossierSelect = document.getElementById("dossierSelect");
+const dossierBody = document.getElementById("dossierBody");
+const kyokaiBody = document.getElementById("kyokaiBody");
+const viewSelect = document.getElementById("viewSelect");
+const dossierPanel = document.getElementById("dossierPanel");
+const kyokaiPanel = document.getElementById("kyokaiPanel");
+const editorPanel = document.getElementById("editorPanel");
+const editorBody = document.getElementById("editorBody");
+const editorStatus = document.getElementById("editorStatus");
+const confirmEditorBtn = document.getElementById("confirmEditorBtn");
+const trophyPanel = document.getElementById("trophyPanel");
+const trophyNames = document.getElementById("trophyNames");
+const promotionPanel = document.getElementById("promotionPanel");
+const promotionList = document.getElementById("promotionList");
+const archivePanel = document.getElementById("archivePanel");
+const archiveSelect = document.getElementById("archiveSelect");
+const archiveBody = document.getElementById("archiveBody");
+const halloffamePanel = document.getElementById("halloffamePanel");
+const halloffameBody = document.getElementById("halloffameBody");
+const saveBtn = document.getElementById("saveBtn");
+const loadBtn = document.getElementById("loadBtn");
+const soundToggle = document.getElementById("soundToggle");
+let selectedDossierName = null;
+let dohyoTimer = null;
+let carryPreNews = [];
+let carryPreDebutants = new Set();
+
+function showOnlyPanel(name){
+  boutsPanel.hidden = name!=="bouts";
+  resultsPanel.hidden = name!=="results";
+  dossierPanel.hidden = name!=="dossier";
+  kyokaiPanel.hidden = name!=="kyokai";
+  editorPanel.hidden = name!=="editor";
+  archivePanel.hidden = name!=="archive";
+  halloffamePanel.hidden = name!=="halloffame";
+  if(name==="editor") renderBanzukeEditor();
+  if(name==="archive") renderArchivePanel();
+  if(name==="halloffame") renderHallOfFame();
+}
+viewSelect.addEventListener("change", ()=> showOnlyPanel(viewSelect.value));
+
+// --- New: optional Web Audio "beep" sound effects (no external files needed) ---
+let audioCtx = null;
+function playTone(freq, durationMs){
+  if(!soundEnabled) return;
+  try{
+    if(!audioCtx) audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.frequency.value = freq;
+    osc.type = "sine";
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + durationMs/1000);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + durationMs/1000);
+  }catch(e){ /* audio not available — fail silently */ }
+}
+soundToggle.addEventListener("change", ()=>{ soundEnabled = soundToggle.checked; });
+
+// --- New: Save / Load (localStorage, since this is a standalone file, not a sandboxed artifact) ---
+const SAVE_KEY = "sumoBanzukeSave";
+function serializeGame(){
+  return JSON.stringify({
+    wrestlers, currentYear, bashoMonthIndex, totalBashoCount, kyokaiMembers,
+    bashoArchive, retiredArchive, allTimeRecords, usedNames: Array.from(usedNames)
+  });
+}
+function deserializeGame(json){
+  const data = JSON.parse(json);
+  wrestlers = data.wrestlers || [];
+  currentYear = data.currentYear ?? 2026;
+  bashoMonthIndex = data.bashoMonthIndex ?? 0;
+  totalBashoCount = data.totalBashoCount ?? 0;
+  kyokaiMembers = data.kyokaiMembers || [];
+  bashoArchive = data.bashoArchive || [];
+  retiredArchive = data.retiredArchive || [];
+  allTimeRecords = data.allTimeRecords || allTimeRecords;
+  usedNames = new Set(data.usedNames || []);
+}
+saveBtn.addEventListener("click", ()=>{
+  try{
+    localStorage.setItem(SAVE_KEY, serializeGame());
+    statusLine.textContent = "Game saved.";
+  }catch(e){ statusLine.textContent = "Could not save (storage unavailable)."; }
+});
+loadBtn.addEventListener("click", ()=>{
+  try{
+    const json = localStorage.getItem(SAVE_KEY);
+    if(!json){ statusLine.textContent = "No saved game found."; return; }
+    deserializeGame(json);
+    calendarLabel.textContent = currentBashoLabel();
+    bashoLabel.textContent = `Loaded Banzuke — ${currentBashoLabel()}`;
+    renderBanzuke(false, null, new Set(wrestlers.filter(w=>w.kadoban).map(w=>w.name)), null);
+    beginBtn.hidden = false; beginBtn.disabled = false; beginBtn.textContent = "Begin Basho";
+    nextDayBtn.hidden = true; skipDayBtn.hidden = true;
+    dohyoPanel.hidden = true;
+    showOnlyPanel("none"); viewSelect.value = "none";
+    refreshDossierOptions();
+    renderKyokaiPanel();
+    statusLine.textContent = "Game loaded.";
+  }catch(e){ statusLine.textContent = "Could not load saved game."; }
+});
+
+function init(){
+  buildDefaultBanzuke();
+  calendarLabel.textContent = currentBashoLabel();
+  bashoLabel.textContent = `Opening Banzuke — ${currentBashoLabel()}`;
+  renderBanzuke(false, null, null, null);
+  dayCounter.textContent = "";
+  statusLine.textContent = "42 rikishi await the first tournament.";
+  beginBtn.hidden = false; beginBtn.disabled = false; beginBtn.textContent = "Begin Basho";
+  nextDayBtn.hidden = true; skipDayBtn.hidden = true;
+  dohyoPanel.hidden = true; trophyPanel.hidden = true; promotionPanel.hidden = true;
+  viewSelect.value = "none";
+  showOnlyPanel("none");
+  refreshDossierOptions();
+  renderKyokaiPanel();
+}
+
+function silhouetteSVG(withTsuna, stomping){
+  if(!stomping){
+    return `
+    <svg viewBox="0 0 60 90" width="58" height="86">
+      <ellipse cx="30" cy="16" rx="9" ry="10" fill="var(--sumi)"/>
+      <path d="M30 7 Q37 1 33 6" stroke="var(--sumi)" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <path d="M15 88 Q10 54 17 38 Q21 26 30 25 Q39 26 43 38 Q50 54 45 88 Z" fill="var(--sumi)"/>
+      ${withTsuna ? `
+        <path d="M14 44 Q30 53 46 44" stroke="var(--gold)" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <line x1="16" y1="47" x2="13" y2="57" stroke="var(--gold)" stroke-width="2"/>
+        <line x1="22" y1="49.5" x2="20" y2="59.5" stroke="var(--gold)" stroke-width="2"/>
+        <line x1="38" y1="49.5" x2="40" y2="59.5" stroke="var(--gold)" stroke-width="2"/>
+        <line x1="44" y1="47" x2="47" y2="57" stroke="var(--gold)" stroke-width="2"/>
+      ` : ""}
+    </svg>`;
+  }
+  // Stomping shiko stance: wide-planted leg + one leg raised bent at the knee
+  return `
+  <svg viewBox="0 0 90 90" width="80" height="80">
+    <ellipse cx="42" cy="14" rx="9" ry="10" fill="var(--sumi)"/>
+    <path d="M42 5 Q49 -1 45 4" stroke="var(--sumi)" stroke-width="3" fill="none" stroke-linecap="round"/>
+    <path d="M28 24 Q42 20 56 25 L58 50 Q42 56 27 51 Z" fill="var(--sumi)"/>
+    <path d="M27 30 Q14 34 8 26" stroke="var(--sumi)" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M56 30 Q70 32 76 22" stroke="var(--sumi)" stroke-width="6" fill="none" stroke-linecap="round"/>
+    <path d="M32 50 Q28 66 30 84" stroke="var(--sumi)" stroke-width="9" fill="none" stroke-linecap="round"/>
+    <path d="M48 50 Q64 52 70 40 Q73 34 66 32" stroke="var(--sumi)" stroke-width="9" fill="none" stroke-linecap="round"/>
+    ${withTsuna ? `
+      <path d="M27 40 Q42 48 56 40" stroke="var(--gold)" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <line x1="30" y1="43" x2="27" y2="52" stroke="var(--gold)" stroke-width="2"/>
+      <line x1="35" y1="45" x2="33" y2="54" stroke="var(--gold)" stroke-width="2"/>
+      <line x1="49" y1="45" x2="51" y2="54" stroke="var(--gold)" stroke-width="2"/>
+      <line x1="54" y1="43" x2="57" y2="52" stroke="var(--gold)" stroke-width="2"/>
+    ` : ""}
+  </svg>`;
+}
+
+/* ---- Dohyo-iri ceremony ---- */
+function startTournament(){
+  beginBtn.hidden = true;
+  playDohyoIri();
+}
+
+function playDohyoIri(){
+  dohyoPanel.hidden = false;
+  dohyoNames.innerHTML = "";
+  yokozunaEntrance.innerHTML = "";
+  dohyoRing.innerHTML = silhouetteSVG(false, false);
+  statusLine.textContent = "The dohyo-iri ceremony begins…";
+
+  const nonYoko = [...wrestlers].filter(w=>w.tier!=="Yokozuna").sort((a,b)=> tierOrderIndex(b)-tierOrderIndex(a));
+  const yoko = [...wrestlers].filter(w=>w.tier==="Yokozuna");
+  const groupSize = 6;
+  const groups = [];
+  for(let i=0;i<nonYoko.length;i+=groupSize) groups.push(nonYoko.slice(i,i+groupSize));
+
+  let gi = 0;
+  function nextGroup(){
+    if(gi>=groups.length){ startYokozunaSequence(); return; }
+    dohyoNames.innerHTML = groups[gi].map((w,idx)=>`<span style="animation-delay:${idx*70}ms">${w.name}</span>`).join(" ");
+    gi++;
+    dohyoTimer = setTimeout(nextGroup, 550);
+  }
+
+  function startYokozunaSequence(){
+    dohyoNames.innerHTML = `<em style="color:#8a6d2f;">Makuuchi dohyo-iri complete.</em>`;
+    if(yoko.length===0){ dohyoTimer = setTimeout(finishCeremony, 500); return; }
+    yokozunaEntrance.innerHTML = `<div style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#8a6d2f;margin-bottom:8px;">Yokozuna Dohyo-iri</div>`;
+    let yi = 0;
+    function nextYoko(){
+      if(yi>=yoko.length){ dohyoTimer = setTimeout(finishCeremony, 700); return; }
+      const w = yoko[yi];
+      dohyoRing.innerHTML = silhouetteSVG(true, true);
+      yokozunaEntrance.innerHTML = `
+        <div style="font-size:13px;letter-spacing:0.2em;text-transform:uppercase;color:#8a6d2f;margin-bottom:8px;">Yokozuna Dohyo-iri</div>
+        <div class="yname">${w.name}</div>
+        <div class="yritual">raises the tsuna rope and performs the shiko ground-stomping ritual</div>
+      `;
+      yi++;
+      dohyoTimer = setTimeout(nextYoko, 1600);
+    }
+    dohyoTimer = setTimeout(nextYoko, 300);
+  }
+
+  function finishCeremony(){
+    dohyoPanel.hidden = true;
+    beginBashoAfterCeremony();
+  }
+
+  nextGroup();
+}
+
+skipCeremonyBtn.addEventListener("click", ()=>{
+  clearTimeout(dohyoTimer);
+  dohyoPanel.hidden = true;
+  beginBashoAfterCeremony();
+});
+
+/* ---- Basho lifecycle ---- */
+function beginBashoAfterCeremony(){
+  const {news, newDebutants} = determineInjuriesAndRetirements();
+  carryPreNews = news;
+  carryPreDebutants = newDebutants;
+  pendingKinboshiNews = [];
+
+  wrestlers.forEach(w=>{
+    w.prevTier = w.tier; w.prevTierNum = w.tierNum; w.isNew = false;
+    if(w.kyujo){ w.wins = 0; w.losses = 15; } else { w.wins = 0; w.losses = 0; }
+  });
+  const activeList = wrestlers.filter(w=>!w.kyujo);
+  currentBashoLog = generateBashoLog(activeList);
+  revealedDay = 0;
+
+  bashoLabel.textContent = `${currentBashoLabel()} — In Progress`;
+  renderBanzuke(true, null, null, carryPreDebutants);
+  nextDayBtn.hidden = false; skipDayBtn.hidden = false;
+  statusLine.textContent = "The basho is underway. Step through each day, or skip to the final day.";
+  nextDay();
+}
+
+function nextDay(){
+  if(revealedDay>=15) return;
+  const dayResults = currentBashoLog[revealedDay];
+  applyDayResults(dayResults);
+  revealedDay++;
+  renderBanzuke(true, null, null, carryPreDebutants);
+  renderTodaysBouts(dayResults, revealedDay);
+  dayCounter.textContent = `DAY ${revealedDay} / 15`;
+  if(revealedDay>=15){
+    nextDayBtn.hidden = true; skipDayBtn.hidden = true;
+    statusLine.textContent = "Final day complete. Tallying champions and prizes…";
+    setTimeout(finalizeBasho, 800);
+  }
+}
+
+function skipToFinalDay(){
+  for(let d=revealedDay; d<15; d++) applyDayResults(currentBashoLog[d]);
+  revealedDay = 15;
+  renderBanzuke(true, null, null, carryPreDebutants);
+  renderTodaysBouts(currentBashoLog[14], 15);
+  dayCounter.textContent = `DAY 15 / 15`;
+  nextDayBtn.hidden = true; skipDayBtn.hidden = true;
+  statusLine.textContent = "Final day complete. Tallying champions and prizes…";
+  setTimeout(finalizeBasho, 800);
+}
+
+function renderTodaysBouts(dayResults, dayNum){
+  boutsTitle.textContent = `Day ${dayNum} of 15 — ${currentBashoLabel()}`;
+
+  // Championship Race: shown from Day 10 onward, top active records
+  let raceHTML = "";
+  if(dayNum>=10){
+    const active = wrestlers.filter(w=>!w.kyujo).slice().sort((a,b)=> (b.wins-b.losses)-(a.wins-a.losses));
+    const top = active.slice(0,5);
+    raceHTML = `
+      <div style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px dashed var(--line);">
+        <div style="font-size:11px; letter-spacing:0.25em; text-transform:uppercase; color:#8a6d2f; text-align:center; margin-bottom:6px;">Yushō Race</div>
+        ${top.map(w=>`<div class="bout-row"><span>${rankLabel(w)} ${w.name}</span><span class="bout-vs"></span><span class="record" style="text-align:left;">${w.wins}-${w.losses}</span></div>`).join("")}
+      </div>
+    `;
+  }
+
+  boutsList.innerHTML = raceHTML + dayResults.map(r=>{
+    const a = wrestlers.find(w=>w.name===r.aName);
+    const b = wrestlers.find(w=>w.name===r.bName);
+    if(!a || !b) return "";
+    const winner = r.aWon ? a : b, loser = r.aWon ? b : a;
+    const winPct = Math.round((r.aWon ? r.aProb : 1-r.aProb)*100);
+    const commentary = generateCommentary(winner, loser, dayNum);
+    return `
+      <div class="bout-row" style="grid-template-columns:1fr 60px 1fr; align-items:start;">
+        <span>${rankLabel(winner)} ${winner.name}</span>
+        <span class="bout-vs">def.</span>
+        <span>${rankLabel(loser)} ${loser.name}</span>
+      </div>
+      <div style="text-align:center; font-size:10.5px; color:#8a7a55; margin:-2px 0 8px;">
+        by <strong style="color:var(--vermillion-deep);">${r.kimarite}</strong> &nbsp;·&nbsp; pre-bout favorite ${winPct}%${commentary ? ` &nbsp;·&nbsp; <em>${commentary}</em>` : ""}
+      </div>
+    `;
+  }).join("");
+}
+
+// --- New: Trophy Ceremony, shown before results are revealed ---
+function playTrophyCeremony(callback){
+  trophyPanel.hidden = false;
+  trophyNames.innerHTML = "";
+  const trophies = ["🏆 Emperor's Cup", "🏆 Prime Minister's Cup", "🏆 Governor's Trophy"];
+  let i = 0;
+  function next(){
+    if(i>=trophies.length){ setTimeout(()=>{ trophyPanel.hidden=true; callback(); }, 500); return; }
+    const div = document.createElement("div");
+    div.style.animation = "fadeInName 0.6s ease forwards";
+    div.textContent = trophies[i];
+    trophyNames.appendChild(div);
+    i++;
+    setTimeout(next, 700);
+  }
+  next();
+}
+
+// --- New: Animated Banzuke Announcement — shows old rank → new rank for movers ---
+function playPromotionAnimation(beforeLabels, changeTags, callback){
+  const changed = [...changeTags.keys()].slice(0, 14); // cap so the animation stays snappy
+  const extra = changeTags.size - changed.length;
+  if(changed.length===0){ callback(); return; }
+  promotionPanel.hidden = false;
+  promotionList.innerHTML = "";
+  let i = 0;
+  function next(){
+    if(i>=changed.length){
+      if(extra>0){
+        const div = document.createElement("div");
+        div.style.cssText = "color:#8a7a55; font-style:italic; font-size:12px;";
+        div.textContent = `…and ${extra} more seat${extra===1?"":"s"} moved.`;
+        promotionList.appendChild(div);
+      }
+      setTimeout(()=>{ promotionPanel.hidden=true; callback(); }, 600);
+      return;
+    }
+    const name = changed[i];
+    const w = wrestlers.find(x=>x.name===name);
+    if(w){
+      const dir = changeTags.get(name);
+      const arrow = dir==="up" ? "↑" : "↓";
+      const color = dir==="up" ? "var(--green)" : "var(--vermillion-deep)";
+      const div = document.createElement("div");
+      div.style.cssText = `animation: fadeInName 0.5s ease forwards; color:${color};`;
+      div.textContent = `${name}: ${beforeLabels.get(name)||"—"} ${arrow} ${rankLabel(w)}`;
+      promotionList.appendChild(div);
+    }
+    i++;
+    setTimeout(next, 220);
+  }
+  next();
+}
+
+// --- New: Fan popularity — shifts based on championships, prizes, streaks, kinboshi, Yokozuna reigns ---
+function updatePopularity(champion, prizes){
+  champion.popularity = clamp(champion.popularity + 15, 0, 100);
+  prizes.forEach(p=> p.winner.popularity = clamp(p.winner.popularity+5, 0, 100));
+  wrestlers.forEach(w=>{
+    if(w.tier==="Yokozuna") w.popularity = clamp(w.popularity+1, 0, 100);
+    if(w.currentStreak>=7) w.popularity = clamp(w.popularity+3, 0, 100);
+    const gotKinboshiThisBasho = w.kinboshiLog.length && w.kinboshiLog[w.kinboshiLog.length-1].startsWith(currentBashoLabel());
+    if(gotKinboshiThisBasho) w.popularity = clamp(w.popularity+8, 0, 100);
+  });
+}
+
+// --- New: Record announcements — tracks a few notable all-time records ---
+function checkRecordsBroken(champion){
+  const news = [];
+  if(wrestlers.length===0) return news;
+  const topWins = wrestlers.reduce((best,w)=> w.careerWins>best.careerWins?w:best, wrestlers[0]);
+  if(topWins.careerWins>0 && (!allTimeRecords.mostCareerWins || topWins.careerWins > allTimeRecords.mostCareerWins.value)){
+    allTimeRecords.mostCareerWins = {name:topWins.name, value:topWins.careerWins};
+    news.push(`🏆 NEW RECORD: ${topWins.name} now holds the most career wins with ${topWins.careerWins}.`);
+  }
+  const topStreak = wrestlers.reduce((best,w)=> w.longestWinStreak>best.longestWinStreak?w:best, wrestlers[0]);
+  if(topStreak.longestWinStreak>0 && (!allTimeRecords.longestWinStreak || topStreak.longestWinStreak > allTimeRecords.longestWinStreak.value)){
+    allTimeRecords.longestWinStreak = {name:topStreak.name, value:topStreak.longestWinStreak};
+    news.push(`🏆 NEW RECORD: ${topStreak.name} sets a new longest winning streak at ${topStreak.longestWinStreak} matches.`);
+  }
+  const champAge = Math.floor(champion.ageMonths/12);
+  if(!allTimeRecords.youngestChampion || champAge < allTimeRecords.youngestChampion.value){
+    allTimeRecords.youngestChampion = {name:champion.name, value:champAge};
+    news.push(`🏆 NEW RECORD: ${champion.name} becomes the youngest champion on record at age ${champAge}.`);
+  }
+  wrestlers.filter(w=>w.tier==="Yokozuna").forEach(w=>{
+    const age = Math.floor(w.ageMonths/12);
+    if(!allTimeRecords.oldestYokozuna || age > allTimeRecords.oldestYokozuna.value){
+      allTimeRecords.oldestYokozuna = {name:w.name, value:age};
+      news.push(`🏆 NEW RECORD: ${w.name} is now the oldest active Yokozuna on record at age ${age}.`);
+    }
+  });
+  return news;
+}
+
+function finalizeBasho(){
+  playTrophyCeremony(()=>{
+    const finishedBashoLabel = currentBashoLabel();
+    const {champion, playoffNote, prizes, headline} = determineChampionAndPrizes();
+    recordHistory(champion, prizes);
+    updatePopularity(champion, prizes);
+    const recordNews = checkRecordsBroken(champion);
+    playTone(660, 180);
+
+    // "As-competed" standings snapshot for the historical archive (captured before any rank changes)
+    const standingsSnapshot = wrestlers.map(w=>({
+      name:w.name, rank:w.history[w.history.length-1].rank, wins:w.wins, losses:w.losses, stable:w.stable
+    }));
+    const nonChamp = wrestlers.filter(w=>!w.kyujo && w!==champion);
+    const runnerUpWins = nonChamp.length ? Math.max(...nonChamp.map(w=>w.wins)) : 0;
+    const runnerUp = nonChamp.filter(w=>w.wins===runnerUpWins).map(w=>w.name);
+
+    const {news: rankNews, kadobanSet, newDebutants: rankDebutants} = processRankChanges(champion);
+    const news = [...carryPreNews, headline, ...pendingKinboshiNews, ...recordNews, ...rankNews];
+    const newDebutants = new Set([...carryPreDebutants, ...rankDebutants]);
+    renderResultsPanel(champion, playoffNote, prizes, news);
+    refreshDossierOptions();
+
+    // --- Historical Archive: permanent summary of this basho (new) ---
+    bashoArchive.push({
+      label: finishedBashoLabel,
+      champion: {name:champion.name, rank: standingsSnapshot.find(s=>s.name===champion.name)?.rank || rankLabel(champion), wins:champion.wins, losses:champion.losses},
+      runnerUp, playoffNote,
+      prizes: prizes.map(p=>({label:p.label, name:p.winner.name})),
+      standings: standingsSnapshot,
+      news: news.slice()
+    });
+
+    const beforeLabels = new Map(standingsSnapshot.map(s=>[s.name, s.rank]));
+
+    setTimeout(()=>{
+      const changeTags = reassignRanks();
+      advanceCalendar();
+      checkChairmanElection(news);
+      renderResultsPanel(champion, playoffNote, prizes, news);
+      calendarLabel.textContent = currentBashoLabel();
+
+      playPromotionAnimation(beforeLabels, changeTags, ()=>{
+        bashoLabel.textContent = `New Banzuke — ${currentBashoLabel()}`;
+        renderBanzuke(true, changeTags, kadobanSet, newDebutants);
+        statusLine.textContent = "The sheet has turned. ▲ promoted · ▼ demoted · NEW debutant since last basho. You may edit the banzuke via the panel dropdown before starting the next basho.";
+        dayCounter.textContent = "";
+        beginBtn.hidden = false; beginBtn.disabled = false; beginBtn.textContent = "Begin Next Basho";
+        refreshDossierOptions();
+        renderKyokaiPanel();
+      });
+    }, 700);
+  });
+}
+
+function renderResultsPanel(champion, playoffNote, prizes, news){
+  resultsBashoLabel.textContent = `${currentBashoLabel()} Results`;
+  championBlock.innerHTML = `
+    <div class="yusho-label">Yushō — Tournament Champion</div>
+    <div class="yusho-name">${champion.name}</div>
+    <div class="yusho-meta">${rankLabel(champion)} · ${champion.wins}-${champion.losses}${champion.careerYusho>1 ? ` · Career yushō: ${champion.careerYusho}`:""}</div>
+    ${playoffNote ? `<div class="playoff-note">${playoffNote}</div>` : ""}
+  `;
+  prizeTable.innerHTML = "";
+  if(prizes.length===0){
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td colspan="4" class="no-prize">No special prizes awarded this basho.</td>`;
+    prizeTable.appendChild(tr);
+  } else {
+    const head = document.createElement("tr");
+    head.innerHTML = `<th>Prize</th><th>Winner</th><th>Rank</th><th>Record</th>`;
+    prizeTable.appendChild(head);
+    prizes.forEach(p=>{
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${p.label}</td><td>${p.winner.name}</td><td>${rankLabel(p.winner)}</td><td class="rec">${p.winner.wins}-${p.winner.losses}</td>`;
+      prizeTable.appendChild(tr);
+    });
+  }
+  newsList.innerHTML = "";
+  if(news.length===0){
+    const li = document.createElement("li");
+    li.textContent = "No promotions, demotions, or roster changes this basho.";
+    newsList.appendChild(li);
+  } else {
+    news.forEach(n=>{
+      const li = document.createElement("li");
+      li.textContent = n;
+      newsList.appendChild(li);
+    });
+  }
+}
+
+/* ---- Dossier ---- */
+function refreshDossierOptions(){
+  const sorted = [...wrestlers].sort((a,b)=> tierOrderIndex(a)-tierOrderIndex(b) || (a.side==="E"?-1:1));
+  const prevSelection = selectedDossierName;
+  dossierSelect.innerHTML = `<option value="">— select a rikishi —</option>`;
+  sorted.forEach(w=>{
+    const opt = document.createElement("option");
+    opt.value = w.name;
+    opt.textContent = `${w.name} — ${rankLabel(w)}`;
+    dossierSelect.appendChild(opt);
+  });
+  if(prevSelection && wrestlers.some(w=>w.name===prevSelection)){
+    dossierSelect.value = prevSelection;
+    renderDossier(prevSelection);
+  } else {
+    selectedDossierName = null;
+    dossierBody.innerHTML = `<div class="dossier-empty">Choose a rikishi above to see their tournament-by-tournament record.</div>`;
+  }
+}
+
+function hoshitoriMarks(days){
+  // ○ = win, ● = loss, 休 = absent (kyujo) that day
+  return days.map(d=> d==="W" ? "○" : d==="L" ? "●" : "休").join(" ");
+}
+
+function renderDossier(name){
+  const w = wrestlers.find(x=>x.name===name);
+  if(!w){
+    dossierBody.innerHTML = `<div class="dossier-empty">That rikishi is no longer in the Makuuchi division.</div>`;
+    return;
+  }
+  const years = Math.floor(w.ageMonths/12), months = w.ageMonths%12;
+  const statusBits = [];
+  if(w.kyujo) statusBits.push("currently on kyūjo (resting from injury)");
+  if(w.kadoban) statusBits.push("kadoban");
+  if(w.ozekiDemotionGrace) statusBits.push("on Ozeki grace tournament (needs 10+ wins)");
+
+  const totalGames = w.careerWins + w.careerLosses;
+  const winPct = totalGames>0 ? ((w.careerWins/totalGames)*100).toFixed(1) : "—";
+  const streakText = w.currentStreak>0 ? `${w.currentStreak}-match winning streak`
+    : w.currentStreak<0 ? `${-w.currentStreak} consecutive defeats` : "no active streak";
+
+  const summary = `
+    <div class="dossier-summary">
+      <div><span class="dossier-name">${w.name}</span> · ${rankLabel(w)}</div>
+      <div class="dossier-stats">Stable: ${w.stable} &nbsp;·&nbsp; Age: ${years}y ${months}mo &nbsp;·&nbsp; Height: ${w.height} cm &nbsp;·&nbsp; Weight: ${w.weight} kg</div>
+      ${statusBits.length ? `<div class="dossier-stats">${statusBits.join(" · ")}</div>` : ""}
+    </div>
+    <div class="dossier-stats" style="text-align:left; line-height:1.9; margin-bottom:14px; padding-bottom:12px; border-bottom:1px dashed var(--line);">
+      <strong>Highest rank achieved:</strong> ${w.highestRankLabel || rankLabel(w)}<br>
+      <strong>Career record:</strong> ${w.careerWins}-${w.careerLosses} (${winPct}% career winning rate)<br>
+      <strong>Basho entered / missed:</strong> ${w.bashoEntered} / ${w.bashoMissed}<br>
+      <strong>Championships (Yushō):</strong> ${w.careerYusho} &nbsp;·&nbsp; <strong>Runner-up finishes:</strong> ${w.runnerUpCount}<br>
+      <strong>Special prizes (Sanshō):</strong> ${w.careerPrizes}<br>
+      <strong>Kinboshi:</strong> ${w.careerKinboshi}${w.firstKinboshiLabel ? ` (first: ${w.firstKinboshiLabel})` : ""}<br>
+      <strong>Longest win streak:</strong> ${w.longestWinStreak} &nbsp;·&nbsp; <strong>Longest losing streak:</strong> ${w.longestLoseStreak}<br>
+      <strong>Current streak:</strong> ${streakText}<br>
+      <strong>Debut basho:</strong> ${w.debutBasho || "—"}${w.retirementBasho ? `<br><strong>Retirement basho:</strong> ${w.retirementBasho}` : ""}<br>
+      <strong>Fan popularity:</strong> ${w.popularity}/100${w.popularity>=80 ? " ⭐ Fan Favorite" : ""}
+    </div>
+  `;
+
+  if(w.history.length===0){
+    dossierBody.innerHTML = summary + `<div class="dossier-empty">No tournaments completed yet.</div>`;
+    return;
+  }
+
+  const rows = w.history.slice().reverse().map(h=>`
+    <tr>
+      <td>${h.basho}</td>
+      <td>${h.rank}</td>
+      <td class="rec">${h.wins}-${h.losses}</td>
+      <td style="letter-spacing:0.05em;">${h.hoshitori ? hoshitoriMarks(h.hoshitori) : ""}</td>
+      <td>${h.honor ? `<span class="honor-tag">${h.honor}</span>` : ""}</td>
+    </tr>
+  `).join("");
+
+  // Head-to-head table, sorted by most matches played against that opponent.
+  // Rivalry system: 5+ meetings with a close overall record is flagged as a classic rivalry.
+  const h2hEntries = Object.entries(w.headToHead).sort((a,b)=> (b[1].wins+b[1].losses)-(a[1].wins+a[1].losses));
+  const h2hRows = h2hEntries.map(([opp, rec])=>{
+    const total = rec.wins+rec.losses;
+    const isRival = total>=5 && Math.abs(rec.wins-rec.losses)<=2;
+    return `<tr><td>${opp}${isRival ? ` <span class="honor-tag" style="background:var(--straw); color:var(--sumi);">Classic Rivalry</span>`:""}</td><td class="rec">${rec.wins}-${rec.losses}</td><td style="font-size:11px; color:#8a7a55;">${rec.lastMeeting||"—"}</td></tr>`;
+  }).join("");
+
+  dossierBody.innerHTML = summary + `
+    <table class="dossier-table">
+      <thead><tr><th>Basho</th><th>Rank</th><th>Record</th><th>Hoshitori</th><th>Honors</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    ${h2hEntries.length ? `
+      <div class="panel-title" style="margin:16px 0 8px;">Head-to-Head Records</div>
+      <table class="dossier-table">
+        <thead><tr><th>Opponent</th><th>Record</th><th>Last Meeting</th></tr></thead>
+        <tbody>${h2hRows}</tbody>
+      </table>
+    ` : ""}
+  `;
+}
+
+/* ---- Kyokai ---- */
+function renderKyokaiPanel(){
+  if(kyokaiMembers.length===0){
+    kyokaiBody.innerHTML = `<div class="dossier-empty">No elders yet — the board fills as rikishi retire from the Makuuchi division.</div>`;
+    return;
+  }
+  const chairman = kyokaiMembers.find(m=>m.isChairman);
+  const chairmanBlock = chairman ? `
+    <div class="chairman-block">
+      <div class="clabel">Chairman</div>
+      <div class="cname">${chairman.name}</div>
+      <div class="dossier-stats">Former ${chairman.formerTier} · Career yushō: ${chairman.careerYusho}</div>
+    </div>
+  ` : `<div class="dossier-empty">No Chairman elected yet — the next election is held every 2 years (12 tournaments).</div>`;
+
+  // Expanded Kyokai: grouped by board role (Chairman handled above, so skip here)
+  const roleOrder = ["Director","Committee Member","Elder"];
+  const groups = roleOrder.map(role=>({
+    role, members: kyokaiMembers.filter(m=>m.role===role || (!m.role && role==="Elder"))
+  })).filter(g=>g.members.length>0);
+
+  const groupsHTML = groups.map(g=>`
+    <div class="panel-title" style="margin:14px 0 6px; font-size:11px;">${g.role}s</div>
+    <table class="kyokai-table">
+      <thead><tr><th>Name</th><th>Former Rank</th><th>Career Yushō</th><th>Joined</th></tr></thead>
+      <tbody>
+        ${g.members.map(m=>`
+          <tr><td>${m.name}</td><td>${m.formerTier}</td><td>${m.careerYusho}</td><td>${m.joinedLabel}</td></tr>
+        `).join("")}
+      </tbody>
+    </table>
+  `).join("");
+
+  kyokaiBody.innerHTML = chairmanBlock + groupsHTML;
+}
+
+/* ---- Historical Archive: browse every completed basho ---- */
+function refreshArchiveOptions(){
+  archiveSelect.innerHTML = bashoArchive.slice().reverse()
+    .map((entry,i)=> `<option value="${bashoArchive.length-1-i}">${entry.label} — Champion: ${entry.champion.name}</option>`)
+    .join("");
+}
+function renderArchivePanel(){
+  if(bashoArchive.length===0){
+    archiveSelect.innerHTML = "";
+    archiveBody.innerHTML = `<div class="dossier-empty">No basho archived yet — complete a tournament to begin building the archive.</div>`;
+    return;
+  }
+  refreshArchiveOptions();
+  renderArchiveEntry(bashoArchive.length-1);
+}
+function renderArchiveEntry(index){
+  const entry = bashoArchive[index];
+  if(!entry) return;
+  archiveSelect.value = String(index);
+  const standingsRows = entry.standings.slice().sort((a,b)=> (b.wins-b.losses)-(a.wins-a.losses)).slice(0,15)
+    .map(s=>`<tr><td>${s.rank}</td><td>${s.name}</td><td>${s.stable}</td><td class="rec">${s.wins}-${s.losses}</td></tr>`).join("");
+  archiveBody.innerHTML = `
+    <div class="chairman-block">
+      <div class="clabel">Champion (Yushō)</div>
+      <div class="cname">${entry.champion.name}</div>
+      <div class="dossier-stats">${entry.champion.rank} · ${entry.champion.wins}-${entry.champion.losses}${entry.playoffNote ? `<br>${entry.playoffNote}` : ""}</div>
+      ${entry.runnerUp && entry.runnerUp.length ? `<div class="dossier-stats">Runner-up: ${entry.runnerUp.join(", ")}</div>` : ""}
+    </div>
+    ${entry.prizes.length ? `
+      <div class="panel-title" style="margin-bottom:8px;">Special Prizes</div>
+      <table class="dossier-table"><tbody>
+        ${entry.prizes.map(p=>`<tr><td>${p.label}</td><td>${p.name}</td></tr>`).join("")}
+      </tbody></table>
+    ` : ""}
+    <div class="panel-title" style="margin:14px 0 8px;">Top Standings</div>
+    <table class="dossier-table">
+      <thead><tr><th>Rank</th><th>Name</th><th>Stable</th><th>Record</th></tr></thead>
+      <tbody>${standingsRows}</tbody>
+    </table>
+    <div class="panel-title" style="margin:14px 0 8px;">Events &amp; News</div>
+    <ul class="news-list">${entry.news.map(n=>`<li>${n}</li>`).join("")}</ul>
+  `;
+}
+archiveSelect.addEventListener("change", ()=>{
+  const idx = parseInt(archiveSelect.value, 10);
+  if(!isNaN(idx)) renderArchiveEntry(idx);
+});
+
+/* ---- Hall of Fame ---- */
+function renderHallOfFame(){
+  // Pool: current active roster + every retired rikishi's archived career snapshot
+  const activeSnapshots = wrestlers.map(w=>({
+    name:w.name, careerWins:w.careerWins, careerLosses:w.careerLosses,
+    winPct: (w.careerWins+w.careerLosses)>0 ? w.careerWins/(w.careerWins+w.careerLosses)*100 : 0,
+    careerYusho:w.careerYusho, careerPrizes:w.careerPrizes, careerKinboshi:w.careerKinboshi,
+    bashoEntered:w.bashoEntered, longestWinStreak:w.longestWinStreak,
+    yokozunaBashoCount:w.yokozunaBashoCount||0, ozekiBashoCount:w.ozekiBashoCount||0,
+    highestRankLabel:w.highestRankLabel, ageAtChampionship: Math.floor(w.ageMonths/12),
+    ozekiYushoStreak:w.ozekiYushoStreak
+  }));
+  const pool = [...activeSnapshots, ...retiredArchive];
+  if(pool.length===0){
+    halloffameBody.innerHTML = `<div class="dossier-empty">The Hall of Fame will populate as rikishi build their careers.</div>`;
+    return;
+  }
+  function top(field){ return pool.reduce((best,p)=> (p[field]||0)>(best[field]||0)?p:best, pool[0]); }
+
+  const mostChampionships = top("careerYusho");
+  const mostWins = top("careerWins");
+  const mostBasho = top("bashoEntered");
+  const mostKinboshi = top("careerKinboshi");
+  const mostSansho = top("careerPrizes");
+  const longestYokozuna = top("yokozunaBashoCount");
+  const longestOzeki = top("ozekiBashoCount");
+  const bestWinPct = pool.reduce((best,p)=> (p.careerWins+p.careerLosses)>=30 && p.winPct>(best.winPct||0) ? p : best, pool[0]);
+  const longestStreak = top("longestWinStreak");
+  const noYokozunaChamps = pool.filter(p=> !(p.yokozunaBashoCount>0)).reduce((best,p)=> (p.careerYusho||0)>(best?best.careerYusho:-1)?p:best, null);
+
+  const fanFavorite = wrestlers.reduce((best,w)=> w.popularity>(best?best.popularity:-1)?w:best, null);
+
+  const rows = [
+    ["Most Championships", mostChampionships, `${mostChampionships.careerYusho} Yushō`],
+    ["Most Career Wins", mostWins, `${mostWins.careerWins} wins`],
+    ["Most Basho Entered", mostBasho, `${mostBasho.bashoEntered} basho`],
+    ["Most Kinboshi", mostKinboshi, `${mostKinboshi.careerKinboshi} gold stars`],
+    ["Most Special Prizes (Sanshō)", mostSansho, `${mostSansho.careerPrizes} prizes`],
+    ["Longest Yokozuna Career", longestYokozuna, `${longestYokozuna.yokozunaBashoCount} basho`],
+    ["Longest Ozeki Career", longestOzeki, `${longestOzeki.ozekiBashoCount} basho`],
+    ["Highest Winning Percentage (30+ bouts)", bestWinPct, `${(bestWinPct.winPct||0).toFixed(1)}%`],
+    ["Longest Winning Streak", longestStreak, `${longestStreak.longestWinStreak} matches`],
+  ];
+  if(allTimeRecords.youngestChampion) rows.push(["Youngest Champion", {name:allTimeRecords.youngestChampion.name}, `age ${allTimeRecords.youngestChampion.value}`]);
+  if(allTimeRecords.oldestYokozuna) rows.push(["Oldest Yokozuna", {name:allTimeRecords.oldestYokozuna.name}, `age ${allTimeRecords.oldestYokozuna.value}`]);
+  if(noYokozunaChamps) rows.push(["Most Championships Without Reaching Yokozuna", noYokozunaChamps, `${noYokozunaChamps.careerYusho} Yushō`]);
+
+  const tableRows = rows.filter(r=>r[1] && r[1].name).map(([label,p,val])=>`
+    <tr><td>${label}</td><td>${p.name}</td><td class="rec">${val}</td></tr>
+  `).join("");
+
+  halloffameBody.innerHTML = `
+    ${fanFavorite ? `
+      <div class="chairman-block">
+        <div class="clabel">Fan Favorite</div>
+        <div class="cname">${fanFavorite.name}</div>
+        <div class="dossier-stats">Popularity: ${fanFavorite.popularity}/100</div>
+      </div>
+    ` : ""}
+    <table class="dossier-table">
+      <thead><tr><th>Record</th><th>Rikishi</th><th>Value</th></tr></thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  `;
+}
+
+dossierSelect.addEventListener("change", ()=>{
+  selectedDossierName = dossierSelect.value || null;
+  if(selectedDossierName) renderDossier(selectedDossierName);
+  else dossierBody.innerHTML = `<div class="dossier-empty">Choose a rikishi above to see their tournament-by-tournament record.</div>`;
+});
+/* ---- Manual banzuke editor ---- */
+function buildSeatList(){
+  const sorted = [...wrestlers].sort((a,b)=> tierOrderIndex(a)-tierOrderIndex(b) || (a.side==="E"?-1:1));
+  return sorted.map(w=>({tier:w.tier, tierNum:w.tierNum, side:w.side, label:`${rankLabel(w)} — ${w.side==="E"?"East":"West"}`}));
+}
+
+function renderBanzukeEditor(){
+  const seats = buildSeatList();
+  const optionsHTML = wrestlers.map(w=>`<option value="${w.name}">${w.name} (${rankLabel(w)})</option>`).join("");
+  editorBody.innerHTML = seats.map((seat,i)=>{
+    const occupant = wrestlers.find(w=>w.tier===seat.tier && w.tierNum===seat.tierNum && w.side===seat.side);
+    return `
+      <div class="row" style="grid-template-columns: 1fr 2fr;">
+        <div class="rankcell" style="text-align:left;">${seat.label}</div>
+        <select data-seat-index="${i}" style="width:100%; padding:6px; font-family:inherit; background:var(--paper); border:1px solid var(--straw);">
+          ${wrestlers.map(w=>`<option value="${w.name}" ${occupant && occupant.name===w.name ? "selected":""}>${w.name} (${rankLabel(w)})</option>`).join("")}
+        </select>
+      </div>
+    `;
+  }).join("");
+  editorStatus.textContent = "";
+  editorBody.dataset.seats = JSON.stringify(seats);
+}
+
+confirmEditorBtn.addEventListener("click", ()=>{
+  const seats = JSON.parse(editorBody.dataset.seats || "[]");
+  const selects = editorBody.querySelectorAll("select[data-seat-index]");
+  const chosen = [];
+  selects.forEach(sel=> chosen.push(sel.value));
+
+  const uniqueNames = new Set(chosen);
+  if(uniqueNames.size !== wrestlers.length || chosen.length !== seats.length){
+    editorStatus.textContent = "Each rikishi must be assigned to exactly one seat — please fix duplicates or empty seats before confirming.";
+    return;
+  }
+
+  chosen.forEach((name, i)=>{
+    const w = wrestlers.find(x=>x.name===name);
+    const seat = seats[i];
+    if(w && seat){ w.tier = seat.tier; w.tierNum = seat.tierNum; w.side = seat.side; }
+  });
+
+  renderBanzuke(false, null, new Set(wrestlers.filter(w=>w.kadoban).map(w=>w.name)), null);
+  refreshDossierOptions();
+  editorStatus.textContent = "Banzuke confirmed — this is the sheet that will be followed next basho.";
+  bashoLabel.textContent = `Kyōkai-Edited Banzuke — ${currentBashoLabel()}`;
+});
+
+beginBtn.addEventListener("click", startTournament);
+nextDayBtn.addEventListener("click", nextDay);
+skipDayBtn.addEventListener("click", skipToFinalDay);
+resetBtn.addEventListener("click", init);
+
+init();
+</script>
+</body>
+</html>
